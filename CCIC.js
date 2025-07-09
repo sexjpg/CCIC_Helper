@@ -3,8 +3,7 @@
 // @namespace    https://claim.ccic-net.com.cn
 // @icon         https://sso.ccic-net.com.cn/casserver/favicon.ico
 // @require      https://unpkg.com/xlsx/dist/xlsx.full.min.js
-// @require      https://update.greasyfork.org/scripts/537487/1597138/SCDatajs.js
-// @version      0.7.9.6
+// @version      0.7.9.8
 // @description  用于2015版大帝理赔页面
 // @author       sexjpg
 // @match        https://claim.ccic-net.com.cn/claim/synergismOpenClaimController*
@@ -21,22 +20,21 @@
 // @noframes
 // @run-at       document-end
 
-// @downloadURL https://update.greasyfork.org/scripts/533378/%E5%A4%A7%E5%9C%B0%E7%90%86%E8%B5%94%E9%A1%B5%E9%9D%A2%E4%BC%98%E5%8C%96.user.js
-// @updateURL https://update.greasyfork.org/scripts/533378/%E5%A4%A7%E5%9C%B0%E7%90%86%E8%B5%94%E9%A1%B5%E9%9D%A2%E4%BC%98%E5%8C%96.meta.js
+// @downloadURL https://update.greasyfork.org/scripts/533378/%E5%A4%A7%E5%B8%9D%E7%90%86%E8%B5%94%E9%A1%B5%E9%9D%A2%E4%BC%98%E5%8C%96.user.js
+// @updateURL https://update.greasyfork.org/scripts/533378/%E5%A4%A7%E5%B8%9D%E7%90%86%E8%B5%94%E9%A1%B5%E9%9D%A2%E4%BC%98%E5%8C%96.meta.js
 // ==/UserScript==
+
+const $ = (selector, context = document) => context.querySelector(selector);
+const $$ = (selector, context = document) => context.querySelectorAll(selector);
 
 
 let 合作维修厂, 配件编码风险, CSV_配件编码
-
-var iframes, iframe;
 const Tasks = new Map();
 const Cases = {};
 const Cars = {};
-const CSStyle = {}
 let myconfig
 
 myconfig = GM_getValue('config') || {}
-
 myconfig.areas = Array.isArray(myconfig.areas) ? myconfig.areas : [] // 类型安全
 myconfig.tailNo = Array.isArray(myconfig.tailNo) ? myconfig.tailNo : [] // 类型安全
 myconfig.publicNo = Array.isArray(myconfig.publicNo) ? myconfig.publicNo : [] // 类型安全
@@ -47,41 +45,9 @@ const observedIframes = new WeakSet();
 // 这里是全局变量,iframe_names_car是车辆损失相关页面,iframe_name_other是其他页面
 const iframe_names_car = ['CarComponent', 'CarLoss']
 const iframe_name_other = ['BIClaim', 'PropLoss', 'IntelligentUnwrtAudit', 'CarEstiAdjust']
-console.log(SCData)
 
 class Common {
-	// 创造悬浮按钮
-	static CreateBTN() {
-		// 创建悬浮按钮
-		const button = document.createElement("button");
-		button.style.position = "fixed";
-		button.style.top = "2px";
-		button.style.right = "70px";
-		button.style.padding = "5px 10px";
-		button.style.zIndex = "9999";
-		button.style.cursor = "pointer";
-		// button.style.backgroundColor = 'transparent';透明
 
-		button.style.backgroundImage = "url(/claim/img/bule/tz.png)";
-		button.style.width = "25px"; // 设置按钮宽度为图片宽度
-		button.style.height = "21px"; // 设置按钮高度为图片高度
-		button.style.border = "1px solid #ccc";
-		button.style.boxShadow = "0 0 10px rgba(0,0,0,0.5)";
-		document.body.appendChild(button);
-
-		// 点击按钮显示菜单
-		button.addEventListener("click", function () {
-			iframes = document.getElementsByTagName("iframe");
-			for (iframe of iframes) {
-				if (iframe.name && iframe.name.includes("Car")) {
-					Common.handle_iframe_carloss(iframe);
-				} else {
-					Common.handle_iframe_others(iframe);
-					// console.debug(iframe.name);
-				}
-			}
-		});
-	}
 
 	// 在iframe中添加按钮
 	static addinitBTN(iframe) {
@@ -141,7 +107,7 @@ class Common {
 						this.bindIframeLoadEvent(node);
 					} else if (node.querySelector) {
 						// 检查子节点中的 iframe（例如动态插入的容器）
-						const iframes = node.querySelectorAll("iframe");
+						const iframes = $$("iframe", node);
 						iframes.forEach((iframe) => {
 							console.debug("iframe 被添加（嵌套）:", iframe);
 							this.bindIframeLoadEvent(iframe);
@@ -154,7 +120,7 @@ class Common {
 					if (node.tagName === "IFRAME") {
 						console.debug("iframe 被移除:", node);
 					} else if (node.querySelector) {
-						const iframes = node.querySelectorAll("iframe");
+						const iframes = $$("iframe", node);
 						iframes.forEach((iframe) => {
 							console.debug("iframe 被移除（嵌套）:", iframe);
 						});
@@ -166,7 +132,7 @@ class Common {
 		observer.observe(targetNode, config);
 
 		// ✅ 新增：立即处理页面初始加载时已存在的iframe
-		document.querySelectorAll("iframe").forEach((iframe) => {
+		$$("iframe").forEach((iframe) => {
 			this.bindIframeLoadEvent(iframe);
 		});
 
@@ -183,7 +149,7 @@ class Common {
 			console.debug("iframe 加载完成:", iframe);
 			//加入处理逻辑
 
-            this.handleifame_events(iframe);
+			this.handleifame_events(iframe);
 
 		});
 
@@ -193,33 +159,33 @@ class Common {
 		}
 	}
 
-    //处理iframe事件
-    static handleifame_events(iframe) { 
-        
-			// Modules.handleImageLink(iframe);
-			// Modules.autuclick_intelligentUnwrt(iframe);
-			// Modules.addTransferdiv(iframe);
+	//处理iframe事件
+	static handleifame_events(iframe) {
 
-			const ifamenames = iframe_names_car.concat(iframe_name_other);
-			if (ifamenames.some((str) => iframe.name.includes(str))) {
-				Common.addinitBTN(iframe);
+		// Modules.handleImageLink(iframe);
+		// Modules.autuclick_intelligentUnwrt(iframe);
+		// Modules.addTransferdiv(iframe);
 
-                Modules.handleImageLink(iframe);
-			    Modules.autuclick_intelligentUnwrt(iframe);
+		const ifamenames = iframe_names_car.concat(iframe_name_other);
+		if (ifamenames.some((str) => iframe.name.includes(str))) {
+			Common.addinitBTN(iframe);
 
-				if (
-					iframe.name &&
-					iframe_names_car.some((str) => iframe.name.includes(str))
-				) {
-					Common.handle_iframe_carloss(iframe);
-				} else if (
-					iframe.name &&
-					iframe_name_other.some((str) => iframe.name.includes(str))
-				) {
-					Common.handle_iframe_others(iframe);
-				}
+			Modules.handleImageLink(iframe);
+			Modules.autuclick_intelligentUnwrt(iframe);
+
+			if (
+				iframe.name &&
+				iframe_names_car.some((str) => iframe.name.includes(str))
+			) {
+				Common.handle_iframe_carloss(iframe);
+			} else if (
+				iframe.name &&
+				iframe_name_other.some((str) => iframe.name.includes(str))
+			) {
+				Common.handle_iframe_others(iframe);
 			}
-    }
+		}
+	}
 
 
 	// toast提示
@@ -547,9 +513,6 @@ class Common {
 		if (iframeDocument.getElementById(id)) {
 			return;
 		}
-		// const elementtr=iframeDocument.querySelector("#prpLcarRepairFeePageList_table tr")
-		// if (!elementtr){return}
-		// city=`广州、佛山、珠海、汕头、顺德`
 		const data = repairfeedict[city];
 		// console.log(data)
 		const content = array2html(data);
@@ -632,14 +595,14 @@ class Common {
 	// 新增跑马灯文本,一般放在下面的按钮处
 	static addMarqueeDiv(marqueetext, spanid, lor = "left") {
 		// 先找到有'返回'按钮的div
-		const bottom = document.querySelector('input[type="button"][value="返回"]');
+		const bottom = $('input[type="button"][value="返回"]');
 		if (!bottom) {
 			console.error("未找到元素,不添加跑马灯");
 			return;
 		}
 		const divbottom = bottom.parentNode;
 		marqueetext = marqueetext.replaceAll("<br>", "").replaceAll("<p>", "");
-		if (divbottom.querySelector(`#${spanid}`)) {
+		if ($(`#${spanid}`, divbottom)) {
 			// console.info(`已经存在相同的跑马灯id:${spanid},不添加跑马灯`)
 			return;
 		}
@@ -708,7 +671,7 @@ class Common {
 			const nextTr = parentTr.nextElementSibling;
 			if (nextTr && nextTr.tagName === "TR") {
 				// 3. 在 nextTr 中查找 .ui_buttons 元素
-				divbottom = nextTr.querySelector(".ui_buttons");
+				divbottom = $(".ui_buttons", nextTr);
 			}
 		}
 
@@ -718,7 +681,7 @@ class Common {
 		}
 
 		marqueetext = marqueetext.replaceAll("<br>", "").replaceAll("<p>", "");
-		if (divbottom.querySelector(`#${spanid}`)) {
+		if ($(`#${spanid}`, divbottom)) {
 			// console.info(`已经存在相同的跑马灯id:${spanid},不添加跑马灯`)
 			return;
 		}
@@ -805,27 +768,23 @@ class Common {
 	//从cell中获得内容
 	static cellGetValue(element) {
 		// 如果是单选
-		// const element_ischeck = element.querySelector("input[checked]");
-		const element_ischeck = element.querySelector('input[type="radio"]');
+		const element_ischeck = $('input[type="radio"]', element);
 		if (element_ischeck) {
-			if (element.querySelector("input[checked]")) {
-				return element
-					.querySelector("input[checked]")
-					.value.trim()
-					.replace("：", "");
+			if ($("input[checked]", element)) {
+				return $("input[checked]", element).value.trim().replace("：", "");
 			} else {
 				return "0";
 			}
 		}
 
 		// 如果是select
-		const element_isselect = element.querySelector("select option");
+		const element_isselect = $("select option", element);
 		if (element_isselect) {
 			return element_isselect.textContent.trim().replace("：", "");
 		}
 
 		// 如果是input
-		const element_isinput = element.querySelector("input");
+		const element_isinput = $("input", element);
 		if (element_isinput) {
 			return element_isinput.value.trim().replace("：", "");
 		}
@@ -839,18 +798,12 @@ class Common {
 	 * @param {object} iframe - iframe
 	 */
 	static handle_iframe_carloss(iframe) {
-		if (
-			!(
-				iframe.name && iframe_names_car.some((str) => iframe.name.includes(str))
-			)
-		) {
+		if (!(iframe.name && iframe_names_car.some((str) => iframe.name.includes(str)))) {
 			return;
 		}
 
 		//新增自动点击损失明细界面
-		const element = iframe.contentDocument.querySelector(
-			"#baseTab > li:nth-child(2) > a"
-		);
+		const element = $("#baseTab > li:nth-child(2) > a", iframe.contentDocument);
 		if (element) {
 			// console.log('自动点击损失明细界面', element);
 			element.click();
@@ -865,32 +818,21 @@ class Common {
 		// 弹窗显示备注信息
 		// const businessMainKey = bpmitems.get("businessMainKey");
 		// displayRemarks(iframe, businessMainKey);
-        Modules.displayRemarks(iframe)
+		Modules.displayRemarks(iframe)
 
 		// 获取凯泰铭提示
 		Common.handle_CarLoss_Risks(iframe);
 
 		// 获取车辆信息
 		let Carinfo = Common.iframe_CarLoss_getCarinfo(iframe);
-		// console.log('Carinfo', Carinfo);
-
-		// let Carinfomsg = `
-		// ${Carinfo.get("是否合作")}${Carinfo.get("维修厂类型")}:${Carinfo.get("修理厂名称")} ${Carinfo.get("合作等级")}<br>
-		// ${Carinfo.get("损失方")} ${Carinfo.get("车牌号")}   ${Carinfo.get("车架号")} ${Carinfo.get("车架年份")}<br>
-		// 初登日期:${Carinfo.get("初登日期")} 实际价值:${Carinfo.get("实际价值")}<br>
-		// ${Carinfo.get("车型名称")}
-		// `;
-		// toastr.info(Carinfomsg, '定损车辆信息');
-		// // Common.addMarqueeDiv(Carinfomsg,'Carinfomsg','right')
-		// Common.addbottomDiv(iframe, Carinfomsg, 'Carinfomsg', 'right')
 
 		//创建一个表格,显示车辆信息
 		createCarLossInfoTable(Carinfo, iframe);
 
 		//检索呈报流程,并显示
 		// displayRenderFlow(iframe);
-        // const RenderFlow = new RenderFlowHandler(iframe)
-        RenderFlowHandler.displayRenderFlow(iframe);
+		// const RenderFlow = new RenderFlowHandler(iframe)
+		RenderFlowHandler.displayRenderFlow(iframe);
 
 
 		//追加配件价格查询
@@ -921,25 +863,20 @@ class Common {
 		const bpmitems = Common.iframe_CarLoss_getbpmitems(iframe);
 		// const businessMainKey = bpmitems.get("businessMainKey");
 		// displayRemarks(iframe, businessMainKey);
-        Modules.displayRemarks(iframe)
+		Modules.displayRemarks(iframe)
 		// 获取案件信息
 		let Caseinfo = Common.getABSinfos(bpmitems);
 		console.log("非车损页面的Caseinfo", Caseinfo);
 		// if(Caseinfo['CheckInfo']['indemnityDuty'] =="全责"){alert(`注意保险责任: ${Caseinfo['CheckInfo']['indemnityDuty']} `)}
 
 		// 显示案件损失信息
-		
 
-        // 展现案件损失明细信息
-        Modules.displaylossitems(iframe)
 
-		// showCaseLossInfo(caselosses)
+		// 展现案件损失明细信息
+		Modules.displaylossitems(iframe)
 
 		//添加查勘信息
-		// const target_element = iframeDocument.querySelector("#approvalInfo") || iframeDocument.querySelector("#lossProp_info");
-		const target_element = iframeDocument.querySelector(
-			"#approvalInfo, #lossProp_info, #estiAdjustAuditOpinion"
-		);
+		const target_element = $("#approvalInfo, #lossProp_info, #estiAdjustAuditOpinion", iframe.contentDocument);
 		if (target_element) {
 			const container = createCheckinfoDiv(bpmitems.get("registNo"), iframe);
 			target_element.insertBefore(container, target_element.firstChild);
@@ -958,9 +895,7 @@ class Common {
 		// 创建临时监控
 		const tempObserver = new MutationObserver((mutations) => {
 			// 查找目标iframe
-			const targetFrame = iframe.contentDocument.querySelector(
-				'iframe[src*="preTaskTodo"]'
-			);
+			const targetFrame = $('iframe[src*="preTaskTodo"]', iframe.contentDocument);
 
 			if (targetFrame) {
 				// 停止临时监控
@@ -972,9 +907,7 @@ class Common {
 				// 监控目标iframe的内容加载
 				const checkContentLoaded = () => {
 					try {
-						const targetDiv = targetFrame.contentDocument.querySelector(
-							"#receiveTaskListDIV > div > div > div.datagrid-view > div.datagrid-view2 > div.datagrid-body "
-						);
+						const targetDiv = $("#receiveTaskListDIV > div > div > div.datagrid-view > div.datagrid-view2 > div.datagrid-body ", targetFrame.contentDocument);
 
 						if (targetDiv) {
 							// 设置正式监控（带防抖）
@@ -1018,13 +951,14 @@ class Common {
 			mutations.forEach((mutation) => {
 				if (mutation.type === "childList") {
 					const targetDiv = mutation.target;
-					const trs = targetDiv.querySelectorAll("tr");
+					const trs = $$("tr", targetDiv);
 					trs.forEach((tr) => {
-						const td_案件号 = tr.querySelector('td[field="registNo"]');
-						const td_承保公司 = tr.querySelector('td[field="comCName"]');
-						const td_损失金额 = tr.querySelector('td[field="sumLossApproval"]');
-						const td_出险时间 = tr.querySelector('td[field="damageStartTime"]');
-						const td_流入时间 = tr.querySelector('td[field="createDateBegin"]');
+						const $ = (selector, context = tr) => context.querySelector(selector);
+						const td_案件号 = $('td[field="registNo"]');
+						const td_承保公司 = $('td[field="comCName"]');
+						const td_损失金额 = $('td[field="sumLossApproval"]');
+						const td_出险时间 = $('td[field="damageStartTime"]');
+						const td_流入时间 = $('td[field="createDateBegin"]');
 
 						// 处理案件号列
 						if (td_案件号) {
@@ -1113,9 +1047,8 @@ class Common {
 								}
 
 								// 添加悬浮提示
-								td_流入时间.title = `已滞留：${
-									Math.round(timeDiff * 10) / 10
-								}小时`; // 保留1位小数
+								td_流入时间.title = `已滞留：${Math.round(timeDiff * 10) / 10
+									}小时`; // 保留1位小数
 							} catch (e) {
 								console.warn("时间解析失败：", td_流入时间.textContent);
 								td_流入时间.style.backgroundColor = "hsla(0, 0%, 80%, 0.5)"; // 错误时灰色半透明
@@ -1231,7 +1164,7 @@ class Common {
 			Cars[frameNo] = car;
 			const historyrisks = car
 				.addhistoryloss2Tasks(registNo, taskId)
-				.then(() => {})
+				.then(() => { })
 				.catch((e) => {
 					console.error("获取历史记录出错", e);
 				});
@@ -1335,7 +1268,7 @@ class Common {
 		}
 
 		const ktmdoc = Common.text2doc(html);
-		const trs = ktmdoc.querySelectorAll("tr");
+		const trs = $$("tr", ktmdoc);
 		if (trs) {
 			trs.forEach((tr) => {
 				let 风险描述 = tr.cells[2].textContent;
@@ -1344,8 +1277,8 @@ class Common {
 					风险项目.split("：").length <= 1
 						? []
 						: 风险项目.split("：")[1].split(",").length <= 1
-						? [风险项目.split("：")[1]]
-						: 风险项目.split("：")[1].split(",");
+							? [风险项目.split("：")[1]]
+							: 风险项目.split("：")[1].split(",");
 				items.forEach((item) => {
 					if (!KTMrisks.has(item)) {
 						KTMrisks.set(item, []);
@@ -1364,9 +1297,7 @@ class Common {
 	// 解析风险提示的界面,输入html的是网页源码
 	static DXM_parser(html) {
 		const DXMdoc = Common.text2doc(html);
-		const carLeakageRiskInfos = DXMdoc.querySelectorAll(
-			"#carLeakageRiskInfo tr.perRow"
-		);
+		const carLeakageRiskInfos = $$("#carLeakageRiskInfo tr.perRow", DXMdoc);
 		const LeakageRisk = new Map();
 		if (carLeakageRiskInfos.length > 0) {
 			carLeakageRiskInfos.forEach((tr) => {
@@ -1435,57 +1366,26 @@ class Common {
 	// 获取定核损页面的carinfo
 	static iframe_CarLoss_getCarinfo(iframe) {
 		let Carinfo = new Map();
-		const iframeDocument =
-			iframe.contentDocument || iframe.contentWindow.document;
-		const Element_修理厂名称 = iframeDocument.querySelector(
-			"#prpLrepairChannelPageList\\[0\\]\\.repairNameHidden"
-		);
-		const Element_是否合作 = iframeDocument.querySelector(
-			"#prpLrepairChannelPageList\\[0\\]\\.isCoop"
-		);
-		const Element_维修厂类型 = iframeDocument.querySelector(
-			"#prpLrepairChannelPageList\\[0\\]\\.is"
-		);
-		const Element_车牌号 = iframeDocument.querySelector(
-			"#prplcarhiddenPage_actualLicenseNo"
-		);
-		const Element_损失方 = iframeDocument.querySelector(
-			"#prpLcarLossPage_lossSide"
-		);
-		const NameElement_车型名称 = iframeDocument.querySelector(
-			"#prpLcarLossApprovalPage_vehCertainName"
-		);
-		const Element_车架号 = iframeDocument.querySelector(
-			"#prplcarhiddenPage_frameNo"
-		);
-		const Element_实际价值 = iframeDocument.querySelector(
-			"#prpLcarLossApprovalPage_carRrice"
-		);
-		const Element_初登日期 = iframeDocument.querySelector(
-			"#prpLcarPage_enrollDate"
-		);
+		const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+		const $ = (selector, context = iframeDocument) => context.querySelector(selector);
+		const Element_修理厂名称 = $("#prpLrepairChannelPageList\\[0\\]\\.repairNameHidden");
+		const Element_是否合作 = $("#prpLrepairChannelPageList\\[0\\]\\.isCoop");
+		const Element_维修厂类型 = $("#prpLrepairChannelPageList\\[0\\]\\.is");
+		const Element_车牌号 = $("#prplcarhiddenPage_actualLicenseNo");
+		const Element_损失方 = $("#prpLcarLossPage_lossSide");
+		const NameElement_车型名称 = $("#prpLcarLossApprovalPage_vehCertainName");
+		const Element_车架号 = $("#prplcarhiddenPage_frameNo");
+		const Element_实际价值 = $("#prpLcarLossApprovalPage_carRrice");
+		const Element_初登日期 = $("#prpLcarPage_enrollDate");
 		// const 合作等级=合作综修厂[Element_修理厂名称.value] > -1 ? `等级:${合作综修厂[Element_修理厂名称.value]}` : ''
-		const 合作等级 =
-			合作维修厂[Element_修理厂名称.value] == undefined
-				? ""
-				: `${合作维修厂[Element_修理厂名称.value]}`;
+		const 合作等级 = 合作维修厂[Element_修理厂名称.value] == undefined ? "" : `${合作维修厂[Element_修理厂名称.value]}`;
 		const 车架年份 = Common.getvinyear(Element_车架号.value);
-		const 报案号 = iframeDocument.querySelector("#prpLcarPage_registNo").value;
-		const 定损方式 = iframeDocument.querySelector(
-			"#prpLcarLossApprovalPage_lossApprovalMethod option"
-		).textContent;
-		const 理赔险别 = iframeDocument.querySelector(
-			"#prpLcarLossApprovalPage\\.lossApprovalKindName"
-		).value;
-		const 车辆品牌 = iframeDocument.querySelector("#tr_0_carBrandName").value;
-		const 车主 = iframeDocument.querySelector("#prpLcarPage_carOwner")
-			? iframeDocument.querySelector("#prpLcarPage_carOwner").value
-			: "";
-		const 是否水淹车 = iframeDocument.querySelector("#isWaterLogging_yes")
-			? iframeDocument.querySelector("#isWaterLogging_yes").checked
-				? "是"
-				: "否"
-			: "否";
+		const 报案号 = $("#prpLcarPage_registNo").value;
+		const 定损方式 = $("#prpLcarLossApprovalPage_lossApprovalMethod option").textContent;
+		const 理赔险别 = $("#prpLcarLossApprovalPage\\.lossApprovalKindName").value;
+		const 车辆品牌 = $("#tr_0_carBrandName").value;
+		const 车主 = $("#prpLcarPage_carOwner") ? $("#prpLcarPage_carOwner").value : "";
+		const 是否水淹车 = $("#isWaterLogging_yes") ? $("#isWaterLogging_yes").checked ? "是" : "否" : "否";
 
 		Carinfo.set("修理厂名称", Element_修理厂名称.value);
 		Carinfo.set(
@@ -1525,8 +1425,7 @@ class Common {
 		} else {
 			iframeDocument = doc;
 		}
-		const bpmPage_elements =
-			iframeDocument.querySelectorAll('[id^="bpmPage_"]');
+		const bpmPage_elements = $$('[id^="bpmPage_"]', iframeDocument);
 
 		bpmPage_elements.forEach((element) => {
 			bpmitems.set(element.id.replace("bpmPage_", ""), element.value);
@@ -1572,10 +1471,10 @@ class Common {
 		// 新增复选框,用于标记已阅项目,并添加事件监听器,勾选时弹窗录入风险信息,element是页面元素的位置,tr是行元素
 		function addCheckbox_partrisk(element, tr) {
 			// 检查元素中是否已经存在复选框
-			const existingCheckbox = element.querySelector('input[type="checkbox"]');
+			const existingCheckbox = $('input[type="checkbox"]', element);
 			if (existingCheckbox) {
-				// console.log('Checkbox already exists in the element.');
-				return; // 如果已经存在复选框，则不进行任何操作
+				// 如果已经存在复选框，则不进行任何操作
+				return;
 			}
 			// 创建一个新的复选框元素
 			const checkbox = document.createElement("input");
@@ -1896,9 +1795,7 @@ class Common {
 				const 事故号 = bpmitems.get("accidentNo");
 				const 节点号 = bpmitems.get("taskId");
 
-				const NameElement_车辆型号 = iframeDocument.querySelector(
-					"#prpLcarLossApprovalPage_vehCertainName"
-				);
+				const NameElement_车辆型号 = $("#prpLcarLossApprovalPage_vehCertainName", iframeDocument);
 				const 车辆型号 = NameElement_车辆型号.value;
 
 				const 零件名称 = Common.cellGetValue(tr.cells[1]);
@@ -1930,11 +1827,9 @@ class Common {
 
 		// 新增功能：检查提醒风险项目
 		// 配件项目部分
-		const tbody_Component = iframeDocument.querySelector(
-			"#UIPrpLComponent_add_orderProduct_table"
-		);
+		const tbody_Component = $("#UIPrpLComponent_add_orderProduct_table", iframeDocument);
 		if (tbody_Component) {
-			const trs = tbody_Component.querySelectorAll("tr");
+			const trs = $$("tr", tbody_Component);
 			trs.forEach((tr, rowIndex) => {
 				const 序号 = tr.cells[0];
 				const 配件名称 = tr.cells[1];
@@ -2025,26 +1920,14 @@ class Common {
 		}
 
 		// 维修费部分
-		const tbody_repairFee = iframeDocument.querySelector(
-			"#UIPrpLrepairFee_add_orderProduct_table"
-		);
+		const tbody_repairFee = $("#UIPrpLrepairFee_add_orderProduct_table", iframeDocument);
 		if (tbody_repairFee) {
-			const th = iframeDocument.querySelector(
-				"#prpLcarRepairFeePageList_table tr"
-			);
+			const th = $("#prpLcarRepairFeePageList_table tr", iframeDocument);
 			Common.addfeetable(iframe, th.cells[2], "广州、佛山、珠海、汕头、顺德");
-			Common.addfeetable(
-				iframe,
-				th.cells[5],
-				"江门、中山、惠州、肇庆、茂名、揭阳、潮州"
-			);
-			Common.addfeetable(
-				iframe,
-				th.cells[8],
-				"云浮、湛江、阳江、清远、韶关、梅州、河源"
-			);
+			Common.addfeetable(iframe, th.cells[5], "江门、中山、惠州、肇庆、茂名、揭阳、潮州");
+			Common.addfeetable(iframe, th.cells[8], "云浮、湛江、阳江、清远、韶关、梅州、河源");
 
-			const trs = tbody_repairFee.querySelectorAll("tr");
+			const trs = $$("tr", tbody_repairFee);
 			trs.forEach((tr, rowIndex) => {
 				const 序号 = tr.cells[0];
 				const 维修类型 = tr.cells[1];
@@ -2100,11 +1983,9 @@ class Common {
 		}
 
 		// 外修部分
-		const tbody_ExternalComponent = iframeDocument.querySelector(
-			"#UIExternalComponent_body"
-		);
+		const tbody_ExternalComponent = $("#UIExternalComponent_body", iframeDocument);
 		if (tbody_ExternalComponent) {
-			const trs = tbody_ExternalComponent.querySelectorAll("tr");
+			const trs = $$("tr", tbody_ExternalComponent);
 			trs.forEach((tr, rowIndex) => {
 				const 序号 = tr.cells[0];
 				const 配件名称 = tr.cells[1];
@@ -2158,11 +2039,9 @@ class Common {
 		}
 
 		// 零部件辅料费用清单信息
-		const PrpLmaterial = iframeDocument.querySelector(
-			"#UIPrpLmaterial_add_orderProduct_table"
-		);
+		const PrpLmaterial = $("#UIPrpLmaterial_add_orderProduct_table", iframeDocument);
 		if (PrpLmaterial) {
-			const trs = PrpLmaterial.querySelectorAll("tr");
+			const trs = $$("tr", PrpLmaterial);
 			trs.forEach((tr, rowIndex) => {
 				const 序号 = tr.cells[0];
 				const 维修类型 = tr.cells[1];
@@ -2188,7 +2067,7 @@ class Common {
 		// 施救费录入
 		const Rescue_mainRow = iframeDocument.querySelector("#newRescue_mainRow");
 		if (Rescue_mainRow) {
-			const trs = Rescue_mainRow.querySelectorAll("tr");
+			const trs = $$("tr", Rescue_mainRow);
 			trs.forEach((tr, rowIndex) => {
 				const 定损备注 = tr.cells[13];
 				const 总金额 = tr.cells[12];
@@ -2301,16 +2180,16 @@ class Common {
 			起保出险 +=
 				Common.计算日期差(policyInfoPage.startDate, RegistInfo.damageTime) < 30
 					? `<br>【${policyInfoPage.policyType}】起保${Common.计算日期差(
-							policyInfoPage.startDate,
-							RegistInfo.damageTime
-					  )}天出险`
+						policyInfoPage.startDate,
+						RegistInfo.damageTime
+					)}天出险`
 					: "";
 			结保出险 +=
 				Common.计算日期差(policyInfoPage.endDate, RegistInfo.damageTime) < 30
 					? `<br>【${policyInfoPage.policyType}】临近到期${Common.计算日期差(
-							policyInfoPage.endDate,
-							RegistInfo.damageTime
-					  )}天出险`
+						policyInfoPage.endDate,
+						RegistInfo.damageTime
+					)}天出险`
 					: "";
 		}
 
@@ -2518,7 +2397,7 @@ class Common {
 		);
 
 		if (tbody_Component) {
-			const trs = tbody_Component.querySelectorAll("tr");
+			const trs = $$("tr", tbody_Component);
 			const risks = new Map();
 			risks.set("配件风险触发", 1);
 			trs.forEach((tr, rowIndex) => {
@@ -2647,571 +2526,571 @@ class Common {
  * 车辆案件信息处理类，用于管理车辆相关案件的历史记录、损失项目及工作流查询
  */
 class CAR {
-    /**
-     * 构造函数，初始化车辆基本信息及历史记录存储结构
-     * @param {string} licenseNo - 车牌号码（必需参数）
-     * @param {string} [frameNo=''] - 车架号/VIN码
-     * @param {string} [engineNo=''] - 发动机号
-     * @param {string} [keyword='标的'] - 用于节点筛选的关键字，默认为'标的'
-     */
-    constructor(licenseNo, frameNo = '', engineNo = '', keyword = '标的') {
-        // 初始化历史案件存储和损失记录映射
-        this.historylosses = new Map()
-        // 设置车辆识别信息
-        this.licenseNo = licenseNo
-        this.frameNo = frameNo
-        this.engineNo = engineNo
-        this.keyword = keyword
-        this.historycasesdict = {}
-    }
+	/**
+	 * 构造函数，初始化车辆基本信息及历史记录存储结构
+	 * @param {string} licenseNo - 车牌号码（必需参数）
+	 * @param {string} [frameNo=''] - 车架号/VIN码
+	 * @param {string} [engineNo=''] - 发动机号
+	 * @param {string} [keyword='标的'] - 用于节点筛选的关键字，默认为'标的'
+	 */
+	constructor(licenseNo, frameNo = '', engineNo = '', keyword = '标的') {
+		// 初始化历史案件存储和损失记录映射
+		this.historylosses = new Map()
+		// 设置车辆识别信息
+		this.licenseNo = licenseNo
+		this.frameNo = frameNo
+		this.engineNo = engineNo
+		this.keyword = keyword
+		this.historycasesdict = {}
+	}
 
-    /**
-     * 异步初始化方法，根据已有车辆信息查询关联工作流
-     * @async
-     * @returns {Promise<boolean>} 返回初始化完成状态
-     */
-    async initialize() {
-        /* 初始化流程控制：避免重复初始化 */
-        if (this.isinit) { return }
-        /* 根据现有车辆信息优先级顺序进行查询（车牌 > 车架 > 发动机） */
-        if (this.licenseNo) {
-            await this.queryWorkflow('', '', this.licenseNo);
-        }
-        if (this.frameNo) {
-            await this.queryWorkflow('', '', '', '', this.frameNo);
-        }
-        if (this.engineNo) {
-            await this.queryWorkflow('', '', '', '', '', this.engineNo);
-        }
-        this.isinit = true
-        return this.isinit
-    }
+	/**
+	 * 异步初始化方法，根据已有车辆信息查询关联工作流
+	 * @async
+	 * @returns {Promise<boolean>} 返回初始化完成状态
+	 */
+	async initialize() {
+		/* 初始化流程控制：避免重复初始化 */
+		if (this.isinit) { return }
+		/* 根据现有车辆信息优先级顺序进行查询（车牌 > 车架 > 发动机） */
+		if (this.licenseNo) {
+			await this.queryWorkflow('', '', this.licenseNo);
+		}
+		if (this.frameNo) {
+			await this.queryWorkflow('', '', '', '', this.frameNo);
+		}
+		if (this.engineNo) {
+			await this.queryWorkflow('', '', '', '', '', this.engineNo);
+		}
+		this.isinit = true
+		return this.isinit
+	}
 
-    /**
-     * 从案件节点列表中获取最后一个完成的车辆定损节点
-     * @param {Array} Nodes - 案件节点列表
-     * @param {string} [keyword=this.keyword] - 节点筛选关键字
-     * @returns {Object|undefined} 返回符合条件的最新节点或undefined
-     */
-    getLastCarLossNode(Nodes, keyword = this.keyword) {
-        /* 节点筛选逻辑：状态为完成(9)且包含关键字的节点 */
-        let tmpid = 0, tmpnode = {}
-        for (let Node of Nodes) {
-            if (Node.status != '9') { continue }
-            if (!Node.nodeName.includes(keyword)) { continue }
-            // 保留ID最大的节点（最新节点）
-            if (Node.id > tmpid) {
-                tmpnode = Node
-                tmpid = Node.id
-            }
-        }
-        return tmpnode?.status ? tmpnode : undefined
-    }
+	/**
+	 * 从案件节点列表中获取最后一个完成的车辆定损节点
+	 * @param {Array} Nodes - 案件节点列表
+	 * @param {string} [keyword=this.keyword] - 节点筛选关键字
+	 * @returns {Object|undefined} 返回符合条件的最新节点或undefined
+	 */
+	getLastCarLossNode(Nodes, keyword = this.keyword) {
+		/* 节点筛选逻辑：状态为完成(9)且包含关键字的节点 */
+		let tmpid = 0, tmpnode = {}
+		for (let Node of Nodes) {
+			if (Node.status != '9') { continue }
+			if (!Node.nodeName.includes(keyword)) { continue }
+			// 保留ID最大的节点（最新节点）
+			if (Node.id > tmpid) {
+				tmpnode = Node
+				tmpid = Node.id
+			}
+		}
+		return tmpnode?.status ? tmpnode : undefined
+	}
 
-    /**
-    * 解析车辆定损页面中的损失项目
-    * @param {Document} doc - 定损页面文档对象
-    * @returns {Map} 返回分类损失项目映射（配件/外修/工时/辅料）
-    */
-    parser_CarlossItems(doc) {
-        /* 表格解析工具函数：从指定表格中提取项目名称 */
-        function getItems(Table, offset = 0) {
-            if (!Table) { return [] }
-            let Items = []
-            const trs = Table.querySelectorAll("tr")
-            trs.forEach((tr) => {
-                const 项目名称 = Common.cellGetValue(tr.cells[1 + offset])
-                if (!Items.includes(项目名称)) { Items.push(项目名称) }
-            })
-            return Items
-        }
+	/**
+	* 解析车辆定损页面中的损失项目
+	* @param {Document} doc - 定损页面文档对象
+	* @returns {Map} 返回分类损失项目映射（配件/外修/工时/辅料）
+	*/
+	parser_CarlossItems(doc) {
+		/* 表格解析工具函数：从指定表格中提取项目名称 */
+		function getItems(Table, offset = 0) {
+			if (!Table) { return [] }
+			let Items = []
+			const trs = $$("tr", Table)
+			trs.forEach((tr) => {
+				const 项目名称 = Common.cellGetValue(tr.cells[1 + offset])
+				if (!Items.includes(项目名称)) { Items.push(项目名称) }
+			})
+			return Items
+		}
 
-        /* 页面元素定位与数据提取 */
-        const lossitems = new Map()
-        lossitems.set('配件', getItems(doc.querySelector("#UIPrpLComponent_add_orderProduct_table"), 0))
-        lossitems.set('外修', getItems(doc.querySelector("#UIExternalComponent_body"), 0))
-        lossitems.set('工时', getItems(doc.querySelector("#UIPrpLrepairFee_add_orderProduct_table"), 1))
-        lossitems.set('辅料', getItems(doc.querySelector("#UIPrpLmaterial_add_orderProduct_table"), 1))
-        return lossitems
-    }
+		/* 页面元素定位与数据提取 */
+		const lossitems = new Map()
+		lossitems.set('配件', getItems(doc.querySelector("#UIPrpLComponent_add_orderProduct_table"), 0))
+		lossitems.set('外修', getItems(doc.querySelector("#UIExternalComponent_body"), 0))
+		lossitems.set('工时', getItems(doc.querySelector("#UIPrpLrepairFee_add_orderProduct_table"), 1))
+		lossitems.set('辅料', getItems(doc.querySelector("#UIPrpLmaterial_add_orderProduct_table"), 1))
+		return lossitems
+	}
 
-    /**
-     * 获取案件的工作流节点数据
-     * @param {Object} caseitem - 案件信息对象
-     * @returns {Promise<Array>} 返回案件节点列表
-     */
-    async getCaseNodes(caseitem) {
-        /* 通过accidentNo获取案件工作流数据 */
-        let Workflowurl = `/claim/bpmTaskController.do?loadWorkflowData&businessMainKey=${caseitem.accidentNo}&showType=1`
-        return await fetch(Workflowurl).then((response) => response.json())
-    }
+	/**
+	 * 获取案件的工作流节点数据
+	 * @param {Object} caseitem - 案件信息对象
+	 * @returns {Promise<Array>} 返回案件节点列表
+	 */
+	async getCaseNodes(caseitem) {
+		/* 通过accidentNo获取案件工作流数据 */
+		let Workflowurl = `/claim/bpmTaskController.do?loadWorkflowData&businessMainKey=${caseitem.accidentNo}&showType=1`
+		return await fetch(Workflowurl).then((response) => response.json())
+	}
 
-    /**
-     * 工作流查询方法，收集符合条件的案件信息
-     * @param {string} [registNo] - 报案号
-     * @param {string} [policyNo] - 保单号
-     * @param {string} [licenseNo] - 车牌号
-     * @param {string} [insuredName] - 被保险人
-     * @param {string} [frameNo] - 车架号
-     * @param {string} [engineNo] - 发动机号
-     * @param {string} [accidentNo] - 事故号
-     * @param {string} [claimNo] - 理赔号
-     * @param {string} [licenseNo3] - 三者车牌号
-     * @returns {Promise<Object>} 返回查询结果
-     */
-    async queryWorkflow(registNo = '', policyNo = '', licenseNo = '', insuredName = '', frameNo = '', engineNo = '', accidentNo = '', claimNo = '', licenseNo3 = '') {
-        /* 构建查询参数并发送请求 */
-        const postdata = { registNo, policyNo, licenseNo, insuredName, frameNo, engineNo, accidentNo, claimNo, licenseNo3 }
-        const url = '/claim/bpmTaskController.do?queryWorkflow&field=accidentNo,registNo,policyNo,relationPolicyNo,licenseNo,insuredName,datamgetDateStr'
+	/**
+	 * 工作流查询方法，收集符合条件的案件信息
+	 * @param {string} [registNo] - 报案号
+	 * @param {string} [policyNo] - 保单号
+	 * @param {string} [licenseNo] - 车牌号
+	 * @param {string} [insuredName] - 被保险人
+	 * @param {string} [frameNo] - 车架号
+	 * @param {string} [engineNo] - 发动机号
+	 * @param {string} [accidentNo] - 事故号
+	 * @param {string} [claimNo] - 理赔号
+	 * @param {string} [licenseNo3] - 三者车牌号
+	 * @returns {Promise<Object>} 返回查询结果
+	 */
+	async queryWorkflow(registNo = '', policyNo = '', licenseNo = '', insuredName = '', frameNo = '', engineNo = '', accidentNo = '', claimNo = '', licenseNo3 = '') {
+		/* 构建查询参数并发送请求 */
+		const postdata = { registNo, policyNo, licenseNo, insuredName, frameNo, engineNo, accidentNo, claimNo, licenseNo3 }
+		const url = '/claim/bpmTaskController.do?queryWorkflow&field=accidentNo,registNo,policyNo,relationPolicyNo,licenseNo,insuredName,datamgetDateStr'
 
-        /* 处理响应数据并更新历史案件记录 */
-        return Common.Requests(url, postdata)
-            .then((response) => response.json())
-            .then((result) => {
-                const caseitems = result.rows
-                caseitems.forEach(caseitem => {
-                    // if (!this.historycases.includes(caseitem)) {
-                    if (!this.historycasesdict[caseitem.registNo]) {
-                        // this.historycases = this.historycases.concat([caseitem])
-                        this.historycasesdict[caseitem.registNo] = caseitem
-                    }
+		/* 处理响应数据并更新历史案件记录 */
+		return Common.Requests(url, postdata)
+			.then((response) => response.json())
+			.then((result) => {
+				const caseitems = result.rows
+				caseitems.forEach(caseitem => {
+					// if (!this.historycases.includes(caseitem)) {
+					if (!this.historycasesdict[caseitem.registNo]) {
+						// this.historycases = this.historycases.concat([caseitem])
+						this.historycasesdict[caseitem.registNo] = caseitem
+					}
 
-                })
-                if (Object.values(this.historycasesdict)) {
-                    console.log('看看检索后的历史记录', this.historycasesdict)
-                }
-            })
-    }
+				})
+				if (Object.values(this.historycasesdict)) {
+					console.log('看看检索后的历史记录', this.historycasesdict)
+				}
+			})
+	}
 
-    /**
-     * 获取指定案件的车辆损失明细
-     * @param {Object} caseitem - 案件信息对象
-     * @param {string} [keyword=this.keyword] - 节点筛选关键字
-     */
-    async getcarloss(caseitem, keyword = this.keyword) {
-        /* 重复检查：已处理案件直接返回 */
-        if (this.historylosses.has(caseitem.registNo)) {
-            console.warning('案件已处理:', caseitem.registNo, keyword)
-            return
-        }
+	/**
+	 * 获取指定案件的车辆损失明细
+	 * @param {Object} caseitem - 案件信息对象
+	 * @param {string} [keyword=this.keyword] - 节点筛选关键字
+	 */
+	async getcarloss(caseitem, keyword = this.keyword) {
+		/* 重复检查：已处理案件直接返回 */
+		if (this.historylosses.has(caseitem.registNo)) {
+			console.warning('案件已处理:', caseitem.registNo, keyword)
+			return
+		}
 
-        /* 多步骤处理流程：节点获取->页面解析->数据存储 */
-        let lossitems = await this.getCaseNodes(caseitem)
-            .then(Nodes => {
-                const node = this.getLastCarLossNode(Nodes, keyword)
-                if (!node) throw '未找到车损节点'
-                return `/claim/bpmTaskController.do?processTask&taskId=${node.id}&taskType=${node.taskType}`
-            })
-            .then(carinfourl => fetch(carinfourl).then(res => res.text()))
-            .then(html => {
-                const carinfodoc = Common.text2doc(html)
-                const commonInfo = {}
-                carinfodoc.querySelectorAll('#commonInfo input').forEach(item => {
-                    if (item.value) commonInfo[item.id.replace("bpmPage_", "")] = item.value
-                })
-                return commonInfo
-            })
-            .then(commonInfo => Common.Requests('/claim/carCommonController.do?getLossInfo', commonInfo))
-            .then(response => response.text())
-            .then(html => this.parser_CarlossItems(Common.text2doc(html)))
-            .catch(e => {
-                console.error('处理异常:', e)
-                return new Map([["配件", []], ["外修", []], ["工时", []], ["辅料", []]])
-            })
+		/* 多步骤处理流程：节点获取->页面解析->数据存储 */
+		let lossitems = await this.getCaseNodes(caseitem)
+			.then(Nodes => {
+				const node = this.getLastCarLossNode(Nodes, keyword)
+				if (!node) throw '未找到车损节点'
+				return `/claim/bpmTaskController.do?processTask&taskId=${node.id}&taskType=${node.taskType}`
+			})
+			.then(carinfourl => fetch(carinfourl).then(res => res.text()))
+			.then(html => {
+				const carinfodoc = Common.text2doc(html)
+				const commonInfo = {}
+				$$('#commonInfo input', carinfodoc).forEach(item => {
+					if (item.value) commonInfo[item.id.replace("bpmPage_", "")] = item.value
+				})
+				return commonInfo
+			})
+			.then(commonInfo => Common.Requests('/claim/carCommonController.do?getLossInfo', commonInfo))
+			.then(response => response.text())
+			.then(html => this.parser_CarlossItems(Common.text2doc(html)))
+			.catch(e => {
+				console.error('处理异常:', e)
+				return new Map([["配件", []], ["外修", []], ["工时", []], ["辅料", []]])
+			})
 
-        /* 存储解析结果 */
-        this.historylosses.set(caseitem.registNo, lossitems)
-    }
+		/* 存储解析结果 */
+		this.historylosses.set(caseitem.registNo, lossitems)
+	}
 
-    /**
-     * 批量获取历史案件的损失明细
-     * @param {Array} [caseitems=this.historycases] - 案件列表
-     * @param {string} [keyword=this.keyword] - 节点筛选关键字
-     * @returns {Promise<Array>} 返回所有查询的完成状态
-     */
-    // async gethistoryloss(caseitems = this.historycases, keyword = this.keyword) {
-    async gethistoryloss(caseitems = Object.values(this.historycasesdict), keyword = this.keyword) {
-        /* 创建并行查询队列 */
-        let query = []
+	/**
+	 * 批量获取历史案件的损失明细
+	 * @param {Array} [caseitems=this.historycases] - 案件列表
+	 * @param {string} [keyword=this.keyword] - 节点筛选关键字
+	 * @returns {Promise<Array>} 返回所有查询的完成状态
+	 */
+	// async gethistoryloss(caseitems = this.historycases, keyword = this.keyword) {
+	async gethistoryloss(caseitems = Object.values(this.historycasesdict), keyword = this.keyword) {
+		/* 创建并行查询队列 */
+		let query = []
 
-        caseitems.forEach(caseitem => {
-            if (!this.historylosses.has(caseitem.registNo)) {
-                query.push(this.getcarloss(caseitem, keyword))
-            }
-        })
-        return await Promise.allSettled(query)
-    }
+		caseitems.forEach(caseitem => {
+			if (!this.historylosses.has(caseitem.registNo)) {
+				query.push(this.getcarloss(caseitem, keyword))
+			}
+		})
+		return await Promise.allSettled(query)
+	}
 
-    /**
-     * 对比历史案件找出重复损失项目
-     * @param {string} registNo - 当前报案号
-     * @param {Map} [historylosses=this.historylosses] - 损失记录集合
-     * @returns {Map} 返回重复项目映射（项目名称->关联案件列表）
-     */
-    getsameitems(registNo, historylosses = this.historylosses) {
-        /* 构建基准项目集合 */
-        const baseKey = registNo
-        const baseElements = new Set()
-        Array.from(historylosses.get(baseKey).values()).flat().forEach(item => baseElements.add(item))
+	/**
+	 * 对比历史案件找出重复损失项目
+	 * @param {string} registNo - 当前报案号
+	 * @param {Map} [historylosses=this.historylosses] - 损失记录集合
+	 * @returns {Map} 返回重复项目映射（项目名称->关联案件列表）
+	 */
+	getsameitems(registNo, historylosses = this.historylosses) {
+		/* 构建基准项目集合 */
+		const baseKey = registNo
+		const baseElements = new Set()
+		Array.from(historylosses.get(baseKey).values()).flat().forEach(item => baseElements.add(item))
 
-        /* 历史案件对比分析 */
-        const Sameitems = new Map()
-        historylosses.forEach((损失项目, 案件号) => {
-            if (案件号 !== baseKey) {
-                损失项目.forEach((items, category) => {
-                    items.forEach(item => {
-                        if (baseElements.has(item)) {
-                            if (!Sameitems.has(item)) Sameitems.set(item, [])
-                            const link = this.makeCaseLink(案件号)
-                            if (!Sameitems.get(item).includes(link)) {
-                                Sameitems.get(item).push(`历史案件出现过此项目:${link}`)
-                            }
-                        }
-                    })
-                })
-            }
-        })
-        return Sameitems
-    }
+		/* 历史案件对比分析 */
+		const Sameitems = new Map()
+		historylosses.forEach((损失项目, 案件号) => {
+			if (案件号 !== baseKey) {
+				损失项目.forEach((items, category) => {
+					items.forEach(item => {
+						if (baseElements.has(item)) {
+							if (!Sameitems.has(item)) Sameitems.set(item, [])
+							const link = this.makeCaseLink(案件号)
+							if (!Sameitems.get(item).includes(link)) {
+								Sameitems.get(item).push(`历史案件出现过此项目:${link}`)
+							}
+						}
+					})
+				})
+			}
+		})
+		return Sameitems
+	}
 
-    /**
-     * 将历史损失分析结果关联到任务
-     * @param {string} registNo - 当前报案号
-     * @param {string} taskId - 任务ID
-     */
-    async addhistoryloss2Tasks(registNo, taskId) {
-        /* 前置初始化检查 */
-        await this.initialize()
-        await this.gethistoryloss()
+	/**
+	 * 将历史损失分析结果关联到任务
+	 * @param {string} registNo - 当前报案号
+	 * @param {string} taskId - 任务ID
+	 */
+	async addhistoryloss2Tasks(registNo, taskId) {
+		/* 前置初始化检查 */
+		await this.initialize()
+		await this.gethistoryloss()
 
-        /* 风险数据整合与存储 */
-        const Sameitems = this.getsameitems(registNo)
-        if (!Sameitems || !Tasks.has(taskId)) return
+		/* 风险数据整合与存储 */
+		const Sameitems = this.getsameitems(registNo)
+		if (!Sameitems || !Tasks.has(taskId)) return
 
-        let taskrisks = Tasks.get(taskId)
-        Tasks.set(taskId, Common.risksmerge(taskrisks, Sameitems))
-    }
+		let taskrisks = Tasks.get(taskId)
+		Tasks.set(taskId, Common.risksmerge(taskrisks, Sameitems))
+	}
 
-    /**
-     * 生成案件详情超链接
-     * @param {string} registNo 报案号
-     * @returns {string} HTML超链接字符串
-     */
-    makeCaseLink(registNo) {
-        const accidentNo = this.historycasesdict[registNo]?.accidentNo;
-        if (!accidentNo) return registNo; // 容错处理
-        let linkstr = ''
-        linkstr += `<a href="/claim/bpmTaskController.do?goShowWorkflow&businessMainKey=${accidentNo}" 
+	/**
+	 * 生成案件详情超链接
+	 * @param {string} registNo 报案号
+	 * @returns {string} HTML超链接字符串
+	 */
+	makeCaseLink(registNo) {
+		const accidentNo = this.historycasesdict[registNo]?.accidentNo;
+		if (!accidentNo) return registNo; // 容错处理
+		let linkstr = ''
+		linkstr += `<a href="/claim/bpmTaskController.do?goShowWorkflow&businessMainKey=${accidentNo}" 
                    target="workflow_${accidentNo}"
                    style="color: #007bff; text-decoration: underline;">
                     ${registNo}
                 </a>`;
-        linkstr += `  ${this.historycasesdict[registNo]?.datamgetDateStr}  `
-        linkstr += `   <a href="/claim/certificateController.do?goImageQuery&imageBusiNo=${accidentNo}" 
+		linkstr += `  ${this.historycasesdict[registNo]?.datamgetDateStr}  `
+		linkstr += `   <a href="/claim/certificateController.do?goImageQuery&imageBusiNo=${accidentNo}" 
                    target="images_${accidentNo}" 
                    style="color: #007bff; text-decoration: underline;">
                     图片
                 </a>`;
-        return linkstr;
-    }
+		return linkstr;
+	}
 
 }
 
 // 用于创建悬浮窗口的类
 class MultiTabFloater {
-    constructor(iframe = document, iconstr = '⚙️', options = {}) {
+	constructor(iframe = document, iconstr = '⚙️', options = {}) {
 
-        // 默认配置
-        this.config = {
-            title: '悬浮窗',
-            x: 50,
-            y: 50,
-            bx: 1,
-            by: 1,
-            ...options
-        };
+		// 默认配置
+		this.config = {
+			title: '悬浮窗',
+			x: 50,
+			y: 50,
+			bx: 1,
+			by: 1,
+			...options
+		};
 
-        // 获取 iframe 的 document 对象
-        //iconstr可以用特殊符号⚙️🎛️🦉🌏🚗🏍️🧸🧱
-        const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document || document;
+		// 获取 iframe 的 document 对象
+		//iconstr可以用特殊符号⚙️🎛️🦉🌏🚗🏍️🧸🧱
+		const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document || document;
 
-        // 创建图标按钮
-        this.swastika = iframeDocument.createElement('div');
-        this.swastika.innerHTML = iconstr;
-        this.swastika.style.fontSize = '18px';
-        this.swastika.style.position = 'fixed';
-        this.swastika.style.left = `${this.config.bx}px`;
-        this.swastika.style.bottom = `${this.config.by}px`;
-        this.swastika.style.height = '25px';
-        this.swastika.style.width = '25px';
-        // this.swastika.style.backgroundColor = '#007bff';
-        this.swastika.style.borderRadius = '50%';
-        this.swastika.style.display = 'flex';
-        this.swastika.style.alignItems = 'center';
-        this.swastika.style.justifyContent = 'center';
-        this.swastika.style.cursor = 'pointer';
-        this.swastika.style.zIndex = '1000';
-        this.swastika.style.color = '#333';
-        this.swastika.style.userSelect = 'none';
-        iframeDocument.body.appendChild(this.swastika);
+		// 创建图标按钮
+		this.swastika = iframeDocument.createElement('div');
+		this.swastika.innerHTML = iconstr;
+		this.swastika.style.fontSize = '18px';
+		this.swastika.style.position = 'fixed';
+		this.swastika.style.left = `${this.config.bx}px`;
+		this.swastika.style.bottom = `${this.config.by}px`;
+		this.swastika.style.height = '25px';
+		this.swastika.style.width = '25px';
+		// this.swastika.style.backgroundColor = '#007bff';
+		this.swastika.style.borderRadius = '50%';
+		this.swastika.style.display = 'flex';
+		this.swastika.style.alignItems = 'center';
+		this.swastika.style.justifyContent = 'center';
+		this.swastika.style.cursor = 'pointer';
+		this.swastika.style.zIndex = '1000';
+		this.swastika.style.color = '#333';
+		this.swastika.style.userSelect = 'none';
+		iframeDocument.body.appendChild(this.swastika);
 
-        // 创建悬浮窗口
-        this.modal = iframeDocument.createElement('div');
-        this.modal.style.position = 'fixed';
-        this.modal.style.left = `${this.config.x}px`;
-        this.modal.style.top = `${this.config.y}px`;
-        this.modal.style.transform = 'translate(-50%, -50%)';
-        // this.modal.style.width = '600px'; // 设置宽度,不设置则自适应
-        this.modal.style.maxWidth = '50vw';
-        this.modal.style.maxHeight = '80vh';
-        this.modal.style.backgroundColor = '#f9f9f9';
-        this.modal.style.border = '1px solid #ddd';
-        this.modal.style.borderRadius = '8px';
-        this.modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
-        this.modal.style.zIndex = '1001';
-        this.modal.style.display = 'none';
-        this.modal.style.overflow = 'auto';
-        this.modal.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        iframeDocument.body.appendChild(this.modal);
+		// 创建悬浮窗口
+		this.modal = iframeDocument.createElement('div');
+		this.modal.style.position = 'fixed';
+		this.modal.style.left = `${this.config.x}px`;
+		this.modal.style.top = `${this.config.y}px`;
+		this.modal.style.transform = 'translate(-50%, -50%)';
+		// this.modal.style.width = '600px'; // 设置宽度,不设置则自适应
+		this.modal.style.maxWidth = '50vw';
+		this.modal.style.maxHeight = '80vh';
+		this.modal.style.backgroundColor = '#f9f9f9';
+		this.modal.style.border = '1px solid #ddd';
+		this.modal.style.borderRadius = '8px';
+		this.modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+		this.modal.style.zIndex = '1001';
+		this.modal.style.display = 'none';
+		this.modal.style.overflow = 'auto';
+		this.modal.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+		iframeDocument.body.appendChild(this.modal);
 
-        // 创建标题栏
-        this.header = iframeDocument.createElement('div');
-        this.header.style.padding = '8px';
-        this.header.style.backgroundColor = '#eee';
-        this.header.style.borderBottom = '1px solid #ddd';
-        this.header.style.cursor = 'move';
-        this.header.style.userSelect = 'none';
-        this.header.textContent = `${this.config.title}`;  // 标题文字,空格占位，使标题栏高度不为 0
-        this.modal.appendChild(this.header);
+		// 创建标题栏
+		this.header = iframeDocument.createElement('div');
+		this.header.style.padding = '8px';
+		this.header.style.backgroundColor = '#eee';
+		this.header.style.borderBottom = '1px solid #ddd';
+		this.header.style.cursor = 'move';
+		this.header.style.userSelect = 'none';
+		this.header.textContent = `${this.config.title}`;  // 标题文字,空格占位，使标题栏高度不为 0
+		this.modal.appendChild(this.header);
 
-        // 创建关闭按钮
-        this.closeButton = iframeDocument.createElement('div');
-        this.closeButton.textContent = '×';
-        this.closeButton.style.position = 'absolute';
-        this.closeButton.style.right = '10px';
-        this.closeButton.style.top = '7px';
-        this.closeButton.style.cursor = 'pointer';
-        this.closeButton.style.fontSize = '20px';
-        this.closeButton.style.color = '#888';
-        this.closeButton.style.border = 'none';
-        this.closeButton.style.borderRadius = '50%';
-        // this.closeButton.style.backgroundColor = '#ff4444';
-        this.closeButton.addEventListener('mouseenter', () => {
-            this.closeButton.style.color = '#ff4444';
-        });
-        this.closeButton.addEventListener('mouseleave', () => {
-            this.closeButton.style.color = '#888';
-        });
-        this.header.appendChild(this.closeButton);
+		// 创建关闭按钮
+		this.closeButton = iframeDocument.createElement('div');
+		this.closeButton.textContent = '×';
+		this.closeButton.style.position = 'absolute';
+		this.closeButton.style.right = '10px';
+		this.closeButton.style.top = '7px';
+		this.closeButton.style.cursor = 'pointer';
+		this.closeButton.style.fontSize = '20px';
+		this.closeButton.style.color = '#888';
+		this.closeButton.style.border = 'none';
+		this.closeButton.style.borderRadius = '50%';
+		// this.closeButton.style.backgroundColor = '#ff4444';
+		this.closeButton.addEventListener('mouseenter', () => {
+			this.closeButton.style.color = '#ff4444';
+		});
+		this.closeButton.addEventListener('mouseleave', () => {
+			this.closeButton.style.color = '#888';
+		});
+		this.header.appendChild(this.closeButton);
 
-        // 创建 Tab 容器
-        this.tabContainer = iframeDocument.createElement('div');
-        this.tabContainer.style.display = 'flex';
-        this.tabContainer.style.justifyContent = 'space-around';
-        this.tabContainer.style.gap = '0';
-        this.tabContainer.style.backgroundColor = '#f1f1f1';
-        this.tabContainer.style.borderBottom = '1px solid #ddd';
-        this.modal.appendChild(this.tabContainer);
+		// 创建 Tab 容器
+		this.tabContainer = iframeDocument.createElement('div');
+		this.tabContainer.style.display = 'flex';
+		this.tabContainer.style.justifyContent = 'space-around';
+		this.tabContainer.style.gap = '0';
+		this.tabContainer.style.backgroundColor = '#f1f1f1';
+		this.tabContainer.style.borderBottom = '1px solid #ddd';
+		this.modal.appendChild(this.tabContainer);
 
-        // 创建内容容器
-        this.contentContainer = iframeDocument.createElement('div');
-        this.contentContainer.style.padding = '20px';
-        this.contentContainer.style.fontSize = '14px';
-        this.contentContainer.style.color = '#333';
-        this.modal.appendChild(this.contentContainer);
+		// 创建内容容器
+		this.contentContainer = iframeDocument.createElement('div');
+		this.contentContainer.style.padding = '20px';
+		this.contentContainer.style.fontSize = '14px';
+		this.contentContainer.style.color = '#333';
+		this.modal.appendChild(this.contentContainer);
 
-        // 初始化 Tabs
-        this.tabs = [];
+		// 初始化 Tabs
+		this.tabs = [];
 
-        // 保存窗口位置
-        this.modalPosition = { left: '5%', top: '20%' };
+		// 保存窗口位置
+		this.modalPosition = { left: '5%', top: '20%' };
 
-        // 绑定事件到 iframe 的文档
-        const iframeWindow = iframe.contentWindow || iframe.defaultView;
-        // const iframeDocument = iframeWindow.document;
-        this.swastika.addEventListener('click', this.showModal.bind(this));
-        this.closeButton.addEventListener('click', this.closeModal.bind(this));
-        this.header.addEventListener('mousedown', this.startDrag.bind(this));
-        iframeWindow.addEventListener('mousemove', this.onMouseMove.bind(this));
-        iframeWindow.addEventListener('mouseup', this.stopDrag.bind(this));
-    }
+		// 绑定事件到 iframe 的文档
+		const iframeWindow = iframe.contentWindow || iframe.defaultView;
+		// const iframeDocument = iframeWindow.document;
+		this.swastika.addEventListener('click', this.showModal.bind(this));
+		this.closeButton.addEventListener('click', this.closeModal.bind(this));
+		this.header.addEventListener('mousedown', this.startDrag.bind(this));
+		iframeWindow.addEventListener('mousemove', this.onMouseMove.bind(this));
+		iframeWindow.addEventListener('mouseup', this.stopDrag.bind(this));
+	}
 
-    // 显示悬浮窗口
-    showModal() {
-        this.swastika.style.display = 'none'; // 隐藏卍字按钮
-        this.modal.style.display = 'block';
-        this.modal.style.opacity = '0';
-        this.modal.style.transform = 'scale(0.9)';
-        this.modal.style.left = this.modalPosition.left;
-        this.modal.style.top = this.modalPosition.top;
-        setTimeout(() => {
-            this.modal.style.opacity = '1';
-            this.modal.style.transform = 'scale(1)';
-        }, 10);
-    }
+	// 显示悬浮窗口
+	showModal() {
+		this.swastika.style.display = 'none'; // 隐藏卍字按钮
+		this.modal.style.display = 'block';
+		this.modal.style.opacity = '0';
+		this.modal.style.transform = 'scale(0.9)';
+		this.modal.style.left = this.modalPosition.left;
+		this.modal.style.top = this.modalPosition.top;
+		setTimeout(() => {
+			this.modal.style.opacity = '1';
+			this.modal.style.transform = 'scale(1)';
+		}, 10);
+	}
 
-    // 关闭悬浮窗口
-    closeModal() {
-        this.modal.style.opacity = '0';
-        this.modal.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-            this.modal.style.display = 'none';
-            this.swastika.style.display = 'flex'; // 重新显示卍字按钮
-        }, 300);
-        this.savePosition();
-    }
+	// 关闭悬浮窗口
+	closeModal() {
+		this.modal.style.opacity = '0';
+		this.modal.style.transform = 'scale(0.9)';
+		setTimeout(() => {
+			this.modal.style.display = 'none';
+			this.swastika.style.display = 'flex'; // 重新显示卍字按钮
+		}, 300);
+		this.savePosition();
+	}
 
-    // 保存窗口位置
-    savePosition() {
-        this.modalPosition.left = this.modal.style.left;
-        this.modalPosition.top = this.modal.style.top;
-    }
+	// 保存窗口位置
+	savePosition() {
+		this.modalPosition.left = this.modal.style.left;
+		this.modalPosition.top = this.modal.style.top;
+	}
 
-    // 开始拖拽
-    startDrag(e) {
-        const rect = this.modal.getBoundingClientRect();
-        this.dragging = {
-            isDragging: true,
-            offsetX: e.clientX - rect.left,
-            offsetY: e.clientY - rect.top
-        };
-        e.preventDefault();
-    }
+	// 开始拖拽
+	startDrag(e) {
+		const rect = this.modal.getBoundingClientRect();
+		this.dragging = {
+			isDragging: true,
+			offsetX: e.clientX - rect.left,
+			offsetY: e.clientY - rect.top
+		};
+		e.preventDefault();
+	}
 
-    // 拖拽过程
-    onMouseMove(e) {
-        if (!this.dragging?.isDragging) return;
+	// 拖拽过程
+	onMouseMove(e) {
+		if (!this.dragging?.isDragging) return;
 
-        const newLeft = e.clientX - this.dragging.offsetX;
-        const newTop = e.clientY - this.dragging.offsetY;
+		const newLeft = e.clientX - this.dragging.offsetX;
+		const newTop = e.clientY - this.dragging.offsetY;
 
-        const maxLeft = window.innerWidth - this.modal.offsetWidth;
-        const maxTop = window.innerHeight - this.modal.offsetHeight;
+		const maxLeft = window.innerWidth - this.modal.offsetWidth;
+		const maxTop = window.innerHeight - this.modal.offsetHeight;
 
-        this.modal.style.left = `${Math.min(Math.max(newLeft, 0), maxLeft)}px`;
-        this.modal.style.top = `${Math.min(Math.max(newTop, 0), maxTop)}px`;
-        this.modal.style.transform = 'none';
-    }
+		this.modal.style.left = `${Math.min(Math.max(newLeft, 0), maxLeft)}px`;
+		this.modal.style.top = `${Math.min(Math.max(newTop, 0), maxTop)}px`;
+		this.modal.style.transform = 'none';
+	}
 
-    // 停止拖拽
-    stopDrag() {
-        this.dragging = { isDragging: false };
-    }
+	// 停止拖拽
+	stopDrag() {
+		this.dragging = { isDragging: false };
+	}
 
-    // 添加 Tab
-    addTab(name, contentFunction) {
-        if (name && contentFunction) {
-            this.tabs.push({ name, content: contentFunction });
-            this.updateTabs();
-        }
-    }
+	// 添加 Tab
+	addTab(name, contentFunction) {
+		if (name && contentFunction) {
+			this.tabs.push({ name, content: contentFunction });
+			this.updateTabs();
+		}
+	}
 
-    // 更新 Tab
-    updateTabs() {
-        // 清空 Tab 容器和内容容器
-        this.tabContainer.innerHTML = '';
-        this.contentContainer.innerHTML = '';
+	// 更新 Tab
+	updateTabs() {
+		// 清空 Tab 容器和内容容器
+		this.tabContainer.innerHTML = '';
+		this.contentContainer.innerHTML = '';
 
-        if (this.tabs.length === 0) {
-            // 默认显示 Tab1 的内容
-            this.contentContainer.textContent = '这是 Tab 1 的内容';
-            return;
-        }
+		if (this.tabs.length === 0) {
+			// 默认显示 Tab1 的内容
+			this.contentContainer.textContent = '这是 Tab 1 的内容';
+			return;
+		}
 
-        this.tabs.forEach((tab, index) => {
-            const tabButton = this.tabContainer.ownerDocument.createElement('button');
-            tabButton.textContent = tab.name;
-            tabButton.style.flex = '1';
-            tabButton.style.padding = '10px';
-            tabButton.style.border = 'none';
-            tabButton.style.borderRadius = '0';
-            tabButton.style.cursor = 'pointer';
-            tabButton.style.backgroundColor = '#ddd';
-            tabButton.style.color = '#333';
-            tabButton.style.transition = 'background-color 0.3s ease, color 0.3s ease';
-            tabButton.style.fontSize = '14px';
-            tabButton.style.fontWeight = 'bold';
+		this.tabs.forEach((tab, index) => {
+			const tabButton = this.tabContainer.ownerDocument.createElement('button');
+			tabButton.textContent = tab.name;
+			tabButton.style.flex = '1';
+			tabButton.style.padding = '10px';
+			tabButton.style.border = 'none';
+			tabButton.style.borderRadius = '0';
+			tabButton.style.cursor = 'pointer';
+			tabButton.style.backgroundColor = '#ddd';
+			tabButton.style.color = '#333';
+			tabButton.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+			tabButton.style.fontSize = '14px';
+			tabButton.style.fontWeight = 'bold';
 
-            tabButton.addEventListener('click', () => this.selectTab(index));
+			tabButton.addEventListener('click', () => this.selectTab(index));
 
-            // tabButton.addEventListener('mouseenter', () => {
-            //     if (tabButton.style.backgroundColor !== '#007bff') {
-            //         tabButton.style.backgroundColor = '#ccc';
-            //     }
-            // });
+			// tabButton.addEventListener('mouseenter', () => {
+			//     if (tabButton.style.backgroundColor !== '#007bff') {
+			//         tabButton.style.backgroundColor = '#ccc';
+			//     }
+			// });
 
-            // tabButton.addEventListener('mouseleave', () => {
-            //     if (tabButton.style.backgroundColor !== '#007bff') {
-            //         tabButton.style.backgroundColor = '#ddd';
-            //     }
-            // });
+			// tabButton.addEventListener('mouseleave', () => {
+			//     if (tabButton.style.backgroundColor !== '#007bff') {
+			//         tabButton.style.backgroundColor = '#ddd';
+			//     }
+			// });
 
-            this.tabContainer.appendChild(tabButton);
-        });
+			this.tabContainer.appendChild(tabButton);
+		});
 
-        // 默认选中第一个 Tab
-        this.selectTab(0);
-    }
+		// 默认选中第一个 Tab
+		this.selectTab(0);
+	}
 
-    // 选择 Tab
-    selectTab(index) {
+	// 选择 Tab
+	selectTab(index) {
 
-        // 清空容器内容
-        this.contentContainer.innerHTML = '';
+		// 清空容器内容
+		this.contentContainer.innerHTML = '';
 
-        if (index >= 0 && index < this.tabs.length) {
-            this.tabs.forEach((tab, i) => {
-                const tabButtons = this.tabContainer.getElementsByTagName('button');
-                if (i === index) {
-                    tabButtons[i].style.backgroundColor = '#007bff'; // 蓝色
-                    tabButtons[i].style.color = '#fff'; // 白色
-                    tab.content(this.contentContainer);
-                } else {
-                    tabButtons[i].style.backgroundColor = '#ddd';
-                    tabButtons[i].style.color = '#333';
-                }
-            });
-        }
-    }
+		if (index >= 0 && index < this.tabs.length) {
+			this.tabs.forEach((tab, i) => {
+				const tabButtons = this.tabContainer.getElementsByTagName('button');
+				if (i === index) {
+					tabButtons[i].style.backgroundColor = '#007bff'; // 蓝色
+					tabButtons[i].style.color = '#fff'; // 白色
+					tab.content(this.contentContainer);
+				} else {
+					tabButtons[i].style.backgroundColor = '#ddd';
+					tabButtons[i].style.color = '#333';
+				}
+			});
+		}
+	}
 }
 
 // 创建悬浮窗
 class myModal {
-    constructor(options = {}) {
-        // 合并配置
-        this.config = {
-            miniIcon_text: '🎛️',
-            title: '悬浮窗',
-            x: 100,
-            y: 100,
-            bx: 1,
-            by: 100,
-            content: null,
-            element: null,
-            iframe: document,
-            isdblclick: true,
-            ...options
-        };
+	constructor(options = {}) {
+		// 合并配置
+		this.config = {
+			miniIcon_text: '🎛️',
+			title: '悬浮窗',
+			x: 100,
+			y: 100,
+			bx: 1,
+			by: 100,
+			content: null,
+			element: null,
+			iframe: document,
+			isdblclick: true,
+			...options
+		};
 
-        // 初始化状态
-        this.isDragging = false;
-        this.startX = 0;
-        this.startY = 0;
-        this.initialX = 0;
-        this.initialY = 0;
+		// 初始化状态
+		this.isDragging = false;
+		this.startX = 0;
+		this.startY = 0;
+		this.initialX = 0;
+		this.initialY = 0;
 
-        // 初始化 DOM 元素
-        this.iframe = this.config.iframe || document;
-        this.iframeDocument = this.iframe.contentDocument || this.iframe.contentWindow?.document || document;
+		// 初始化 DOM 元素
+		this.iframe = this.config.iframe || document;
+		this.iframeDocument = this.iframe.contentDocument || this.iframe.contentWindow?.document || document;
 
-        this._createElements();
-        this._bindEvents();
-    }
+		this._createElements();
+		this._bindEvents();
+	}
 
-    _createElements() {
-        // 创建主容器
-        this.floatDiv = this.iframeDocument.createElement('div');
-        this.floatDiv.style.cssText = `
+	_createElements() {
+		// 创建主容器
+		this.floatDiv = this.iframeDocument.createElement('div');
+		this.floatDiv.style.cssText = `
         position: fixed;
         background: white;
         border: 1px solid #ccc;
@@ -3225,9 +3104,9 @@ class myModal {
         z-index: 9999;
       `;
 
-        // 创建标题栏
-        this.titleBar = this.iframeDocument.createElement('div');
-        this.titleBar.style.cssText = `
+		// 创建标题栏
+		this.titleBar = this.iframeDocument.createElement('div');
+		this.titleBar.style.cssText = `
         background:rgba(1, 158, 248, 0.26);
         padding: 1px;
         cursor: move;
@@ -3237,14 +3116,14 @@ class myModal {
         user-select: none;
       `;
 
-        // 标题文字
-        this.titleText = this.iframeDocument.createElement('span');
-        this.titleText.textContent = this.config.title;
+		// 标题文字
+		this.titleText = this.iframeDocument.createElement('span');
+		this.titleText.textContent = this.config.title;
 
-        // 关闭按钮
-        this.closeBtn = this.iframeDocument.createElement('button');
-        this.closeBtn.textContent = '×';
-        this.closeBtn.style.cssText = `
+		// 关闭按钮
+		this.closeBtn = this.iframeDocument.createElement('button');
+		this.closeBtn.textContent = '×';
+		this.closeBtn.style.cssText = `
         background: none;
         border: none;
         font-size: 15px;
@@ -3254,29 +3133,29 @@ class myModal {
         border-radius: 50%;
       `;
 
-        // 内容容器
-        this.contentContainer = this.iframeDocument.createElement('div');
-        this.contentContainer.style.cssText = `
+		// 内容容器
+		this.contentContainer = this.iframeDocument.createElement('div');
+		this.contentContainer.style.cssText = `
         flex: 1;
         overflow: auto;
         padding: 8px;
       `;
 
-        // 组装元素
-        this.titleBar.appendChild(this.titleText);
-        this.titleBar.appendChild(this.closeBtn);
-        this.floatDiv.appendChild(this.titleBar);
-        this.floatDiv.appendChild(this.contentContainer);
-        this.iframeDocument.body.appendChild(this.floatDiv);
+		// 组装元素
+		this.titleBar.appendChild(this.titleText);
+		this.titleBar.appendChild(this.closeBtn);
+		this.floatDiv.appendChild(this.titleBar);
+		this.floatDiv.appendChild(this.contentContainer);
+		this.iframeDocument.body.appendChild(this.floatDiv);
 
-        // 初始位置
-        this.floatDiv.style.left = `${this.config.x}px`;
-        this.floatDiv.style.top = `${this.config.y}px`;
+		// 初始位置
+		this.floatDiv.style.left = `${this.config.x}px`;
+		this.floatDiv.style.top = `${this.config.y}px`;
 
-        // 创建迷你图标（无 element 时）
-        if (!this.config.element) {
-            this.miniIcon = this.iframeDocument.createElement('div');
-            this.miniIcon.style.cssText = `
+		// 创建迷你图标（无 element 时）
+		if (!this.config.element) {
+			this.miniIcon = this.iframeDocument.createElement('div');
+			this.miniIcon.style.cssText = `
           position: fixed;
           left: ${this.config.bx}px;
           top: ${this.config.by}px;
@@ -3293,151 +3172,151 @@ class myModal {
           z-index: 9999;
           box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         `;
-            this.miniIcon.textContent = `${this.config.miniIcon_text}`;
-            this.iframeDocument.body.appendChild(this.miniIcon);
-        }
+			this.miniIcon.textContent = `${this.config.miniIcon_text}`;
+			this.iframeDocument.body.appendChild(this.miniIcon);
+		}
 
-        // 初始化显示状态
-        this.floatDiv.style.display = 'none';
-        if (this.miniIcon) this.miniIcon.style.display = 'block';
+		// 初始化显示状态
+		this.floatDiv.style.display = 'none';
+		if (this.miniIcon) this.miniIcon.style.display = 'block';
 
-        // 绑定元素交互
-        if (this.config.element) {
-            this.config.element.style.cssText = `
+		// 绑定元素交互
+		if (this.config.element) {
+			this.config.element.style.cssText = `
           cursor: pointer;
           user-select: none;
         `;
-            const isdblclick = this.config.isdblclick ? 'dblclick' : 'click';
-            this.config.element.addEventListener(isdblclick, () => this.show());
-        }
+			const isdblclick = this.config.isdblclick ? 'dblclick' : 'click';
+			this.config.element.addEventListener(isdblclick, () => this.show());
+		}
 
-        // 初始化内容
-        if (this.config.content) {
-            this.contentContainer.appendChild(this.config.content);
-        }
-    }
+		// 初始化内容
+		if (this.config.content) {
+			this.contentContainer.appendChild(this.config.content);
+		}
+	}
 
-    _bindEvents() {
-        // 拖动事件
-        this.titleBar.addEventListener('mousedown', (e) => this._startDrag(e));
-        this.iframeDocument.addEventListener('mousemove', (e) => this._drag(e));
-        this.iframeDocument.addEventListener('mouseup', () => this._endDrag());
+	_bindEvents() {
+		// 拖动事件
+		this.titleBar.addEventListener('mousedown', (e) => this._startDrag(e));
+		this.iframeDocument.addEventListener('mousemove', (e) => this._drag(e));
+		this.iframeDocument.addEventListener('mouseup', () => this._endDrag());
 
-        // 关闭按钮
-        this.closeBtn.addEventListener('click', () => this.hide());
+		// 关闭按钮
+		this.closeBtn.addEventListener('click', () => this.hide());
 
-        // 迷你图标切换
-        if (this.miniIcon) {
-            this.miniIcon.addEventListener('click', () => this.toggleVisibility());
-        }
-    }
+		// 迷你图标切换
+		if (this.miniIcon) {
+			this.miniIcon.addEventListener('click', () => this.toggleVisibility());
+		}
+	}
 
-    // 拖动方法
-    _startDrag(e) {
-        this.isDragging = true;
-        this.startX = e.clientX;
-        this.startY = e.clientY;
-        this.initialX = parseFloat(this.floatDiv.style.left);
-        this.initialY = parseFloat(this.floatDiv.style.top);
-    }
+	// 拖动方法
+	_startDrag(e) {
+		this.isDragging = true;
+		this.startX = e.clientX;
+		this.startY = e.clientY;
+		this.initialX = parseFloat(this.floatDiv.style.left);
+		this.initialY = parseFloat(this.floatDiv.style.top);
+	}
 
-    _drag(e) {
-        if (!this.isDragging) return;
-        const dx = e.clientX - this.startX;
-        const dy = e.clientY - this.startY;
-        this.floatDiv.style.left = `${this.initialX + dx}px`;
-        this.floatDiv.style.top = `${this.initialY + dy}px`;
-    }
+	_drag(e) {
+		if (!this.isDragging) return;
+		const dx = e.clientX - this.startX;
+		const dy = e.clientY - this.startY;
+		this.floatDiv.style.left = `${this.initialX + dx}px`;
+		this.floatDiv.style.top = `${this.initialY + dy}px`;
+	}
 
-    _endDrag() {
-        this.isDragging = false;
-    }
+	_endDrag() {
+		this.isDragging = false;
+	}
 
-    // 公共方法
-    toggleVisibility() {
-        const shouldShow = this.floatDiv.style.display === 'none';
-        this.floatDiv.style.display = shouldShow ? 'block' : 'none';
-        if (this.miniIcon) this.miniIcon.style.display = shouldShow ? 'none' : 'block';
-    }
+	// 公共方法
+	toggleVisibility() {
+		const shouldShow = this.floatDiv.style.display === 'none';
+		this.floatDiv.style.display = shouldShow ? 'block' : 'none';
+		if (this.miniIcon) this.miniIcon.style.display = shouldShow ? 'none' : 'block';
+	}
 
-    setContent(element) {
-        this.contentContainer.innerHTML = '';
-        this.contentContainer.appendChild(element);
-    }
+	setContent(element) {
+		this.contentContainer.innerHTML = '';
+		this.contentContainer.appendChild(element);
+	}
 
-    show() {
-        this.floatDiv.style.display = 'block';
-        if (this.miniIcon) this.miniIcon.style.display = 'none';
-    }
+	show() {
+		this.floatDiv.style.display = 'block';
+		if (this.miniIcon) this.miniIcon.style.display = 'none';
+	}
 
-    hide() {
-        this.floatDiv.style.display = 'none';
-        if (this.miniIcon) this.miniIcon.style.display = 'block';
-    }
+	hide() {
+		this.floatDiv.style.display = 'none';
+		if (this.miniIcon) this.miniIcon.style.display = 'block';
+	}
 
-    close() {
-        this.floatDiv.remove();
-        if (this.miniIcon) this.miniIcon.remove();
-        if (this.config.element) {
-            this.config.element.style.cssText = '';
-            this.config.element.removeEventListener('dblclick', () => this.show());
-        }
-    }
+	close() {
+		this.floatDiv.remove();
+		if (this.miniIcon) this.miniIcon.remove();
+		if (this.config.element) {
+			this.config.element.style.cssText = '';
+			this.config.element.removeEventListener('dblclick', () => this.show());
+		}
+	}
 }
 
 
 // 优化后的安全版本,合作维修厂, 配件编码风险是全局变量
 function initialize() {
-    // 1. 加强类型校验
-    const 合作维修厂存储值 = GM_getValue('合作维修厂');
+	// 1. 加强类型校验
+	const 合作维修厂存储值 = GM_getValue('合作维修厂');
 
-    // 验证存储数据结构（必须包含两个元素的数组）
-    const is合作维修厂Valid = Array.isArray(合作维修厂存储值) &&
-        合作维修厂存储值.length === 2 &&
-        typeof 合作维修厂存储值[0] === 'object' &&
-        !Array.isArray(合作维修厂存储值[0]);
+	// 验证存储数据结构（必须包含两个元素的数组）
+	const is合作维修厂Valid = Array.isArray(合作维修厂存储值) &&
+		合作维修厂存储值.length === 2 &&
+		typeof 合作维修厂存储值[0] === 'object' &&
+		!Array.isArray(合作维修厂存储值[0]);
 
-    // 2. 安全解构（带类型回退）
-    const [合作维修厂原始数据, lastModified] = is合作维修厂Valid ?
-        合作维修厂存储值 :
-        [{}, null]; // 无效数据时使用空对象
+	// 2. 安全解构（带类型回退）
+	const [合作维修厂原始数据, lastModified] = is合作维修厂Valid ?
+		合作维修厂存储值 :
+		[{}, null]; // 无效数据时使用空对象
 
-    // 3. 增强数据转换（带类型检查）
-    合作维修厂 = Object.entries(合作维修厂原始数据).reduce((acc, [key, value]) => {
-        // 验证值结构是否为四元素数组
-        if (Array.isArray(value) && value.length >= 4) {
-            acc[key] = `等级:${value[0]},类型:${value[1] ? '服务站' : '综修厂'},厂方折扣:${value[2]}%,品牌折扣:${value[3]}%`;
-        } else {
-            console.warn('异常维修厂数据:', key, value);
-        }
-        return acc;
-    }, {});
+	// 3. 增强数据转换（带类型检查）
+	合作维修厂 = Object.entries(合作维修厂原始数据).reduce((acc, [key, value]) => {
+		// 验证值结构是否为四元素数组
+		if (Array.isArray(value) && value.length >= 4) {
+			acc[key] = `等级:${value[0]},类型:${value[1] ? '服务站' : '综修厂'},厂方折扣:${value[2]}%,品牌折扣:${value[3]}%`;
+		} else {
+			console.warn('异常维修厂数据:', key, value);
+		}
+		return acc;
+	}, {});
 
-    // 4. 带类型保护的配件编码处理
-    const rawCSV = GM_getValue('CSV_配件编码');
-    const CSV_配件编码 = Array.isArray(rawCSV) ? rawCSV : [];
-    配件编码风险 = CSV_配件编码.length > 0 ? Common.List2Dict(CSV_配件编码) : {};
+	// 4. 带类型保护的配件编码处理
+	const rawCSV = GM_getValue('CSV_配件编码');
+	const CSV_配件编码 = Array.isArray(rawCSV) ? rawCSV : [];
+	配件编码风险 = CSV_配件编码.length > 0 ? Common.List2Dict(CSV_配件编码) : {};
 
-    // 5. 统计信息（带数据校验）
-    const stats = {
-        合作综修厂: Object.keys(合作维修厂).length,
-        异常维修厂数据: Object.keys(合作维修厂原始数据).length - Object.keys(合作维修厂).length,
-        配件编码风险: Object.keys(配件编码风险).length,
-        CSV数据更新时间: lastModified ? new Date(lastModified).toLocaleDateString() : '无'
-    };
+	// 5. 统计信息（带数据校验）
+	const stats = {
+		合作综修厂: Object.keys(合作维修厂).length,
+		异常维修厂数据: Object.keys(合作维修厂原始数据).length - Object.keys(合作维修厂).length,
+		配件编码风险: Object.keys(配件编码风险).length,
+		CSV数据更新时间: lastModified ? new Date(lastModified).toLocaleDateString() : '无'
+	};
 
-    console.log('数据初始化报告:', stats);
+	console.log('数据初始化报告:', stats);
 
-    // 6. 增强通知信息,关闭弹窗提示
-    // GM_notification({
-    //     text: `有效合作厂: ${stats.合作综修厂} 
-    //     异常数据: ${stats.异常维修厂数据}
-    //     风险编码: ${stats.配件编码风险}
-    //     最后更新: ${stats.CSV数据更新时间}`
-    //         .replace(/\s+/g, ' '),
-    //     title: '数据健康状态',
-    //     timeout: 8000
-    // });
+	// 6. 增强通知信息,关闭弹窗提示
+	// GM_notification({
+	//     text: `有效合作厂: ${stats.合作综修厂} 
+	//     异常数据: ${stats.异常维修厂数据}
+	//     风险编码: ${stats.配件编码风险}
+	//     最后更新: ${stats.CSV数据更新时间}`
+	//         .replace(/\s+/g, ' '),
+	//     title: '数据健康状态',
+	//     timeout: 8000
+	// });
 }
 
 
@@ -3473,9 +3352,9 @@ class RenderFlowHandler {
 				if (!table) {
 					return renderitems;
 				}
-				const trs = table.querySelectorAll("tr");
+				const trs = $$("tr", table);
 				trs.forEach((tr) => {
-					const tds = tr.querySelectorAll("td");
+					const tds = $$("td", tr);
 					if (tds.length <= 1) {
 						return renderitems;
 					}
@@ -3522,9 +3401,8 @@ class RenderFlowHandler {
 			.then((tasks) => {
 				const task = tasks[0];
 				console.log(task);
-				const url = `/claim/bpmTaskController.do?processTask&taskId=${
-					task["actionId"]
-				}&taskType=${task["taskType"]}&_=${new Date().getTime()}`;
+				const url = `/claim/bpmTaskController.do?processTask&taskId=${task["actionId"]
+					}&taskType=${task["taskType"]}&_=${new Date().getTime()}`;
 				console.log(url);
 				return fetch(url).then((resp) => resp.text());
 			})
@@ -3533,9 +3411,9 @@ class RenderFlowHandler {
 				const doc = new DOMParser().parseFromString(html, "text/html");
 				const tbody = doc.querySelector("#RenderTrack tbody");
 				if (tbody) {
-					const trs = tbody.querySelectorAll("tr");
+					const trs = $$("tr", tbody);
 					trs.forEach((tr) => {
-						const tds = tr.querySelectorAll("td");
+						const tds = $$("td", tr);
 						if (tds.length > 1) {
 							const 序号 = tds[0].innerText.replace(/[\s\-\/\n\t\\]/g, "");
 							const 处理人 = tds[1].innerText.replace(/[\s\-\/\n\t\\]/g, "");
@@ -3720,38 +3598,38 @@ class RenderFlowHandler {
  * document.body.appendChild(calculator.getContainer());
  */
 class PartsCalculator {
-    constructor(配件总价 = 0, 录入的差价 = 0, 残值 = 0) {
-        this.配件总价 = 配件总价;
-        this.录入的差价 = 录入的差价;
-        this.残值 = 残值;
+	constructor(配件总价 = 0, 录入的差价 = 0, 残值 = 0) {
+		this.配件总价 = 配件总价;
+		this.录入的差价 = 录入的差价;
+		this.残值 = 残值;
 
-        // 初始化折扣数据
-        this.initialDiscounts = [
-            { sysDiscount: 0.75, negDiscount: 0.8 },
-            { sysDiscount: 0.75, negDiscount: 0.85 },
-            { sysDiscount: 0.75, negDiscount: 0.88 },
-            { sysDiscount: 0.75, negDiscount: 0.9 },
-            { sysDiscount: 0.75, negDiscount: 1 },
-            { sysDiscount: 0.833, negDiscount: 0.85 },
-            { sysDiscount: 0.8075, negDiscount: 1 },
-            { sysDiscount: 0.8075, negDiscount: 0.89 },
-            { sysDiscount: 0.833, negDiscount: 0.98 },
-            { sysDiscount: 0.88, negDiscount: 1 },
-            { sysDiscount: 0.933, negDiscount: 1 }
-        ];
+		// 初始化折扣数据
+		this.initialDiscounts = [
+			{ sysDiscount: 0.75, negDiscount: 0.8 },
+			{ sysDiscount: 0.75, negDiscount: 0.85 },
+			{ sysDiscount: 0.75, negDiscount: 0.88 },
+			{ sysDiscount: 0.75, negDiscount: 0.9 },
+			{ sysDiscount: 0.75, negDiscount: 1 },
+			{ sysDiscount: 0.833, negDiscount: 0.85 },
+			{ sysDiscount: 0.8075, negDiscount: 1 },
+			{ sysDiscount: 0.8075, negDiscount: 0.89 },
+			{ sysDiscount: 0.833, negDiscount: 0.98 },
+			{ sysDiscount: 0.88, negDiscount: 1 },
+			{ sysDiscount: 0.933, negDiscount: 1 }
+		];
 
-        this.container = this._createContainer();
-        this._createTable();
-        this._bindEvents();
-        this.updateAll();
-    }
+		this.container = this._createContainer();
+		this._createTable();
+		this._bindEvents();
+		this.updateAll();
+	}
 
-    _createContainer() {
-        const container = document.createElement('div');
+	_createContainer() {
+		const container = document.createElement('div');
 
-        // 添加样式
-        const style = document.createElement('style');
-        style.textContent = `
+		// 添加样式
+		const style = document.createElement('style');
+		style.textContent = `
         .calculator-table { border-collapse: collapse; margin: 10px; }
         .calculator-table td, .calculator-table th { 
           border: 1px solid #999; padding: 8px; min-width: 80px; 
@@ -3763,16 +3641,16 @@ class PartsCalculator {
           background: #f0f0f0; padding: 4px; text-align: right; 
         }
       `;
-        container.appendChild(style);
-        return container;
-    }
+		container.appendChild(style);
+		return container;
+	}
 
-    _createTable() {
-        const table = document.createElement('table');
-        table.className = 'calculator-table';
+	_createTable() {
+		const table = document.createElement('table');
+		table.className = 'calculator-table';
 
-        // 生成表头
-        const header = `<tr>
+		// 生成表头
+		const header = `<tr>
         <th rowspan="${this.initialDiscounts.length}">配件总价</th>
         <th rowspan="${this.initialDiscounts.length}">录入的差价</th>
         <th rowspan="${this.initialDiscounts.length}">残值</th>
@@ -3783,10 +3661,10 @@ class PartsCalculator {
         <th>差价</th>
       </tr>`;
 
-        // 生成表格内容
-        let tbody = '';
-        this.initialDiscounts.forEach((discount, i) => {
-            tbody += `<tr>
+		// 生成表格内容
+		let tbody = '';
+		this.initialDiscounts.forEach((discount, i) => {
+			tbody += `<tr>
           ${i === 0 ? `
           <td rowspan="${this.initialDiscounts.length}">
             <input type="number" id="A2" value="${this.配件总价}" step="1">
@@ -3805,105 +3683,105 @@ class PartsCalculator {
           <td class="output G"></td>
           <td class="output H"></td>
         </tr>`;
-        });
+		});
 
-        table.innerHTML = `<thead>${header}</thead><tbody>${tbody}</tbody>`;
-        this.container.appendChild(table);
+		table.innerHTML = `<thead>${header}</thead><tbody>${tbody}</tbody>`;
+		this.container.appendChild(table);
 
-        // 缓存 DOM 元素
-        this.inputs = {
-            A2: table.querySelector('#A2'),
-            B2: table.querySelector('#B2'),
-            C2: table.querySelector('#C2'),
-            D: [...table.querySelectorAll('.D')],
-            E: [...table.querySelectorAll('.E')]
-        };
+		// 缓存 DOM 元素
+		this.inputs = {
+			A2: table.querySelector('#A2'),
+			B2: table.querySelector('#B2'),
+			C2: table.querySelector('#C2'),
+			D: [...table.querySelectorAll('.D')],
+			E: [...table.querySelectorAll('.E')]
+		};
 
-        this.outputs = {
-            F: [...table.querySelectorAll('.F')],
-            G: [...table.querySelectorAll('.G')],
-            H: [...table.querySelectorAll('.H')]
-        };
-    }
+		this.outputs = {
+			F: [...table.querySelectorAll('.F')],
+			G: [...table.querySelectorAll('.G')],
+			H: [...table.querySelectorAll('.H')]
+		};
+	}
 
-    _bindEvents() {
-        // 扁平化输入元素并绑定事件
-        [...Object.values(this.inputs).flat()].forEach(input => {
-            input.addEventListener('input', () => this.updateAll());
-        });
-    }
+	_bindEvents() {
+		// 扁平化输入元素并绑定事件
+		[...Object.values(this.inputs).flat()].forEach(input => {
+			input.addEventListener('input', () => this.updateAll());
+		});
+	}
 
-    calculate(row) {
-        const A = parseFloat(this.inputs.A2.value) || 0;
-        const B = parseFloat(this.inputs.B2.value) || 0;
-        const C = parseFloat(this.inputs.C2.value) || 0;
-        const D = parseFloat(this.inputs.D[row].value) || 0;
-        const E = parseFloat(this.inputs.E[row].value) || 0;
+	calculate(row) {
+		const A = parseFloat(this.inputs.A2.value) || 0;
+		const B = parseFloat(this.inputs.B2.value) || 0;
+		const C = parseFloat(this.inputs.C2.value) || 0;
+		const D = parseFloat(this.inputs.D[row].value) || 0;
+		const E = parseFloat(this.inputs.E[row].value) || 0;
 
-        let F = '';
-        let G = '';
-        let H = '';
+		let F = '';
+		let G = '';
+		let H = '';
 
-        if (D > 0 && E > 0 && A > 0) {
-            F = (A + C - B) / D;
-            G = F * E;
-            H = G - A - C + B;
-        }
+		if (D > 0 && E > 0 && A > 0) {
+			F = (A + C - B) / D;
+			G = F * E;
+			H = G - A - C + B;
+		}
 
-        return {
-            F: F ? F.toFixed(6) : '',
-            G: G ? G.toFixed(6) : '',
-            H: H ? H.toFixed(6) : ''
-        };
-    }
+		return {
+			F: F ? F.toFixed(6) : '',
+			G: G ? G.toFixed(6) : '',
+			H: H ? H.toFixed(6) : ''
+		};
+	}
 
-    updateAll() {
-        this.inputs.D.forEach((_, row) => {
-            const res = this.calculate(row);
-            this.outputs.F[row].textContent = res.F;
-            this.outputs.G[row].textContent = res.G;
-            this.outputs.H[row].textContent = res.H;
-        });
-    }
+	updateAll() {
+		this.inputs.D.forEach((_, row) => {
+			const res = this.calculate(row);
+			this.outputs.F[row].textContent = res.F;
+			this.outputs.G[row].textContent = res.G;
+			this.outputs.H[row].textContent = res.H;
+		});
+	}
 
-    getContainer() {
-        return this.container;
-    }
+	getContainer() {
+		return this.container;
+	}
 }
 
 // 整合创建计算器悬浮框
 async function createCalculator(iframe) {
 
-    const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-    const tbody_Component = await async_querySelector("#UIPrpLComponent_add_orderProduct_table", { parent: iframeDocument })
-    if (!tbody_Component) return;
-    let total = 0
-    let 差价 = 0
-    let remnant = 0   //残值
-    if (tbody_Component) {
-        const trs = tbody_Component.querySelectorAll("tr");
-        trs.forEach((tr, rowIndex) => {
-            const 定损总价 = tr.cells[16];
-            const price = parseFloat(定损总价.querySelector("input").value);
-            total += price;
-            const 配件名称 = tr.cells[1].textContent;
-            // const 配件名称 = tr.querySelector('input[id^="partStandard"]').value
-            if (配件名称.includes("差价")) { 差价 += price; }
+	const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+	const tbody_Component = await async_querySelector("#UIPrpLComponent_add_orderProduct_table", { parent: iframeDocument })
+	if (!tbody_Component) return;
+	let total = 0
+	let 差价 = 0
+	let remnant = 0   //残值
+	if (tbody_Component) {
+		const trs = $$("tr", tbody_Component);
+		trs.forEach((tr, rowIndex) => {
+			const 定损总价 = tr.cells[16];
+			const price = parseFloat(定损总价.querySelector("input").value);
+			total += price;
+			const 配件名称 = tr.cells[1].textContent;
+			// const 配件名称 = tr.querySelector('input[id^="partStandard"]').value
+			if (配件名称.includes("差价")) { 差价 += price; }
 
-            const 定损残值 = tr.querySelector('input[id$="veriRemnant"]') ? parseFloat(tr.querySelector('input[id$="veriRemnant"]').value) : 0;
-            const remnantPrice = parseFloat(定损残值)
-            remnant += remnantPrice;
+			const 定损残值 = tr.querySelector('input[id$="veriRemnant"]') ? parseFloat(tr.querySelector('input[id$="veriRemnant"]').value) : 0;
+			const remnantPrice = parseFloat(定损残值)
+			remnant += remnantPrice;
 
-        })
-    }
+		})
+	}
 
-    if (total === 0) { return; }
+	if (total === 0) { return; }
 
-    const targetElement = iframeDocument.querySelector('#_componentFeeId div.table-responsive')
+	const targetElement = iframeDocument.querySelector('#_componentFeeId div.table-responsive')
 
 
-    const calculator = new PartsCalculator(total, 差价, remnant);
-    const floatingWindow = new myModal({ iframe: iframe, title: '差价计算器', element: targetElement, content: calculator.getContainer() ,isdblclick:false});
+	const calculator = new PartsCalculator(total, 差价, remnant);
+	const floatingWindow = new myModal({ iframe: iframe, title: '差价计算器', element: targetElement, content: calculator.getContainer(), isdblclick: false });
 
 }
 
@@ -3918,678 +3796,678 @@ async function createCalculator(iframe) {
 
 // 创建数据配置面板
 function Createconfigdiv() {
-    // 添加函数内变量存储Excel数据
-    let excelData = null;
-
-    const buttonStyles = {
-        display: "none",
-        width: "100%",
-        padding: "5px",
-        backgroundColor: "#007bff",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer"
-    };
-
-    const container = document.createElement("div");
-    container.style.backgroundColor = "white";
-    container.style.padding = "10px";
-    container.style.width = "100%"; // 设置div的宽度
-    container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
-
-    function createExcel_div() {
-        const excelDiv = document.createElement("div");
-        container.style.backgroundColor = "white";
-        container.style.padding = "10px";
-        container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
-
-        const input_excel = document.createElement("input");
-        input_excel.type = "file";
-        input_excel.id = "excelFile";
-        input_excel.accept = ".csv, .xlsx, .xls";
-        input_excel.style.display = "block";
-        input_excel.style.width = "100%"; // 设置文件选择控件的宽度为100%
-
-        // 新增信息展示区域
-        const excel_infoDiv = document.createElement("div");
-        excel_infoDiv.id = "excelInfo";
-        excel_infoDiv.style.margin = "10px 0";
-        excel_infoDiv.style.padding = "10px";
-        excel_infoDiv.style.backgroundColor = "#f8f9fa";
-        excel_infoDiv.style.borderRadius = "4px";
-        excel_infoDiv.style.display = "none"; // 默认隐藏
-
-        // 创建信息展示元素
-        const fileNameEl = document.createElement("div");
-        fileNameEl.style.fontSize = "14px";
-
-        const modifyTimeEl = document.createElement("div");
-        modifyTimeEl.style.fontSize = "12px";
-        modifyTimeEl.style.color = "#6c757d";
-
-        const sheetsEl = document.createElement("div");
-        sheetsEl.style.fontSize = "12px";
-        sheetsEl.style.color = "#28a745";
-
-        excel_infoDiv.appendChild(fileNameEl);
-        excel_infoDiv.appendChild(modifyTimeEl);
-        excel_infoDiv.appendChild(sheetsEl);
-
-        // 更新信息显示的函数
-        function updateInfoDisplay() {
-            if (excelData?.data) {
-                fileNameEl.textContent = `文件名：${excelData.filename}`;
-                modifyTimeEl.textContent = `最后修改：${new Date(
-                    excelData.lastModified
-                ).toLocaleString()}`;
-                sheetsEl.textContent = `包含工作表：${Object.keys(excelData.data).join(
-                    ", "
-                )}`;
-                excel_infoDiv.style.display = "block";
-            } else {
-                excel_infoDiv.style.display = "none";
-            }
-        }
-
-        const btn_updatelocal = document.createElement("button");
-        Object.assign(btn_updatelocal.style, buttonStyles);
-        btn_updatelocal.textContent = "更新本地数据";
-
-        // 修改原有的事件监听，确保数据存储到全局变量
-        // 修改事件监听部分（修复核心错误）
-        input_excel.addEventListener("change", function () {
-            const file = input_excel.files[0]; // 关键修复：获取第一个文件
-            file && readExcel(file);
-        });
-
-        btn_updatelocal.addEventListener("click", function () {
-            const updatedata = handlexcelData(excelData);
-            if (updatedata) {
-                // 更新本地数据
-                // const tempdata = updatedata[0]
-                const lastModified = updatedata[1];
-                // console.log(updatedata)
-                const localdata = GM_getValue("合作维修厂");
-                if (!localdata || localdata[1] < lastModified) {
-                    GM_setValue("合作维修厂", updatedata);
-                    GM_notification({
-                        text: `本地数据已更新,数据时间${lastModified}`,
-                        title: "数据更新",
-                        timeout: 3000,
-                    });
-                } else {
-                    GM_notification({
-                        text: `未更新,修改时间需晚于本地数据时间${lastModified}`,
-                        title: "数据更新",
-                        timeout: 3000,
-                    });
-                }
-            }
-        });
-
-        // 读取Excel函数
-        function readExcel(file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const data = e.target.result;
-                    const workbook = XLSX.read(data, { type: "binary" });
-
-                    // 存储所有工作表数据
-                    const sheetsData = {};
-
-                    // 遍历所有工作表
-                    workbook.SheetNames.forEach((sheetName) => {
-                        const worksheet = workbook.Sheets[sheetName];
-
-                        // 检查是否为空表
-                        if (!worksheet["!ref"]) return; // 跳过空表
-                        const range = XLSX.utils.decode_range(worksheet["!ref"]);
-                        if (range.e.r - range.s.r < 1) return; // 行数小于1视为空表
-
-                        // 转换工作表数据
-                        sheetsData[sheetName] = XLSX.utils.sheet_to_json(worksheet, {
-                            header: 1,
-                            defval: "", // 处理空单元格
-                        });
-                    });
-
-                    // 检查是否有有效数据
-                    if (Object.keys(sheetsData).length === 0) {
-                        throw new Error("工作簿中没有有效的工作表");
-                    }
-
-                    excelData = {
-                        filename: file.name,
-                        lastModified: new Date(file.lastModified).toISOString(),
-                        data: sheetsData,
-                    };
-                    console.log("读取完成", excelData);
-                    if (excelData) {
-                        btn_updatelocal.style.display = "block";
-                        updateInfoDisplay(); // 新增：更新信息显示
-                    }
-                } catch (error) {
-                    console.error("文件解析失败:", error);
-                    alert(`文件解析错误: ${error.message}`);
-                }
-            };
-
-            reader.onerror = function (e) {
-                console.error("文件读取失败:", e.target.error);
-                alert("文件读取失败，请检查文件格式");
-            };
-
-            reader.readAsBinaryString(file);
-        }
-
-        // 创建导出按钮
-        const btn_Export = document.createElement("button");
-        btn_Export.textContent = "导出Excel";
-        btn_Export.style.cssText = btn_updatelocal.style.cssText; // 复用读取按钮样式
-        btn_Export.style.backgroundColor = "#28a745"; // 使用绿色区分
-        btn_Export.addEventListener("click", exportExcel);
-
-        // 导出Excel函数
-        function exportExcel() {
-            if (!excelData?.data) {
-                alert("请先读取有效的Excel文件");
-                return;
-            }
-
-            // 创建工作簿
-            const workbook = XLSX.utils.book_new();
-
-            // 遍历所有工作表
-            Object.entries(excelData.data).forEach(([sheetName, sheetData]) => {
-                // 将二维数组转换为工作表
-                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-                // 添加工作表到工作簿
-                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-            });
-
-            // 生成文件名（保留原文件名基础）
-            const originalName = excelData.filename.replace(/\.[^/.]+$/, ""); // 移除原有扩展名
-            const timestamp = new Date()
-                .toISOString()
-                .replace(/[:.]/g, "-")
-                .slice(0, 19);
-            const filename = `${originalName}_导出_${timestamp}.xlsx`;
-
-            // 写入文件并下载
-            XLSX.writeFile(workbook, filename);
-            console.log("导出完成", {
-                文件名: filename,
-                包含工作表: Object.keys(excelData.data),
-            });
-        }
-
-        const header = document.createElement("span");
-        header.textContent = "维修厂信息Excel文件";
-
-        excelDiv.appendChild(header);
-        excelDiv.appendChild(input_excel);
-        excelDiv.appendChild(btn_updatelocal);
-        excelDiv.appendChild(btn_Export);
-        excelDiv.appendChild(excel_infoDiv);
-
-        return excelDiv;
-    }
-
-    function createflesh_div() {
-        const flesh_div = document.createElement("div");
-        container.style.backgroundColor = "white";
-        container.style.padding = "10px";
-        container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
-
-        // 在原有按钮之后添加刷新按钮
-        const btn_refresh = document.createElement("button");
-        Object.assign(btn_refresh.style, buttonStyles);
-        btn_refresh.textContent = "刷新本地数据";
-        btn_refresh.style.backgroundColor = "#ffc107"; // 使用黄色区分
-        btn_refresh.style.display = "block";
-        btn_refresh.addEventListener("click", refreshLocalData);
-
-        // 创建本地数据展示区域
-        const localDataInfo = document.createElement("div");
-        localDataInfo.id = "localDataInfo";
-        localDataInfo.style.margin = "10px 0";
-        localDataInfo.style.padding = "10px";
-        localDataInfo.style.backgroundColor = "#fff3cd";
-        localDataInfo.style.borderRadius = "4px";
-
-        // 创建三个数据展示框
-        const dataBox1 = createDataBox("data1");
-        const dataBox2 = createDataBox("data2");
-        const dataBox3 = createDataBox("data3");
-
-        localDataInfo.appendChild(dataBox1);
-        localDataInfo.appendChild(dataBox2);
-        localDataInfo.appendChild(dataBox3);
-
-        flesh_div.appendChild(btn_refresh);
-        flesh_div.appendChild(localDataInfo);
-
-        // 辅助函数：创建统一样式的数据框
-        function createDataBox(id) {
-            const box = document.createElement("div");
-            box.id = id;
-            box.style.padding = "8px";
-            box.style.margin = "5px 0";
-            box.style.backgroundColor = "white";
-            box.style.border = "1px solid #ffeeba";
-            box.textContent = "待加载数据..."; // 初始占位文本
-            return box;
-        }
-
-        // 刷新本地数据函数
-        function refreshLocalData() {
-            const localData = GM_getValue("合作维修厂");
-            initialize();
-            if (localData) {
-                dataBox1.textContent = `总记录数: ${Object.keys(合作维修厂).length || 0
-                    }`;
-                dataBox2.textContent = `最新时间: ${localData[1] || "未知"}`;
-                dataBox3.textContent = `风险配件数: ${Object.keys(配件编码风险).length
-                    }`;
-            } else {
-                dataBox1.textContent = "总记录数: 0";
-                dataBox2.textContent = "最新时间: 无数据";
-                dataBox3.textContent = "数据状态: 未初始化";
-            }
-        }
-
-        return flesh_div;
-    }
-
-    //新增CSV配件风险数据的操作````````````````````````````
-    function createCSV_div() {
-        // 创建一个div_csv容器
-        const div_csv = document.createElement("div");
-        //   div_csv.style.backgroundColor = "white";
-        div_csv.style.padding = "10px";
-        div_csv.style.width = "100%"; // 设置div的宽度
-        div_csv.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
-
-        // 创建文件选择控件
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = ".csv";
-        fileInput.style.display = "block";
-        fileInput.style.width = "100%"; // 设置文件选择控件的宽度为100%
-        fileInput.style.marginBottom = "10px";
-
-        // 创建读取按钮
-        const btn_readcsv = document.createElement("button");
-        Object.assign(btn_readcsv.style, buttonStyles);
-        btn_readcsv.textContent = "读取CSV";
-        btn_readcsv.style.display = "block";
-
-        // 创建导出按钮
-        const btn_exportcsv = document.createElement("button");
-        Object.assign(btn_exportcsv.style, buttonStyles);
-        btn_exportcsv.textContent = "导出CSV";
-        btn_exportcsv.style.display = "block";
-
-
-
-        /**
-     * 读取并解析CSV文件，过滤空行和空白字段，保存处理后的数据
-     * 
-     * 功能描述：
-     * 1. 使用FileReader读取CSV文件内容
-     * 2. 执行两次过滤：首次过滤全空行，二次过滤兼容不同换行符的残留空行
-     * 3. 分离标题行和数据行，仅保留有效数据行
-     * 4. 使用GM_setValue存储处理后的数据，并发送通知
-     * 
-     * @param {File} file - 要读取的CSV文件对象
-     */
-        function readCSV(file) {
-            const reader = new FileReader();
-            reader.readAsText(file);
-            reader.onload = function (event) {
-                try {
-                    const csvData = event.target.result;
-
-                    /* 核心解析流程：分割行->拆解列->过滤全空行 */
-                    const rows = csvData.split("\n")
-                        .map(row => row.split(","))
-                        .filter(row => !row.every(field => isBlankField(field)));
-
-                    /* 结构分离：解构获取标题行和后续数据行 */
-                    const [headers, ...dataRows] = rows;
-
-                    /* 二次过滤：排除单列行和残留空行（处理\r\n换行符情况） */
-                    const filteredData = dataRows.filter(row =>
-                        row.length > 1 && !row.every(field => isBlankField(field))
-                    );
-
-                    /* 检查合并数据 */
-                    const mergeData = mergeCSVData(filteredData)
-
-                    /* 持久化存储与用户反馈 */
-                    GM_setValue("CSV_配件编码", mergeData);
-                    console.log("CSV数据已处理保存：", mergeData);
-                    GM_notification("数据处理完成", `有效记录：${mergeData.length}条`);
-
-                } catch (error) {
-                    console.error("处理失败：", error);
-                    GM_notification("处理失败", error.message);
-                }
-            };
-
-            /* 判断字段是否为空：包含空白字符/换行符的视为空 */
-            function isBlankField(field) {
-                return !field || field.replace(/[\r\n\s]/g, "").trim() === "";
-            }
-
-            /* 字段清洗：移除特定符号和空白字符 */
-            function cleanField2(field) {
-                return (field || "").replace(/[-\/\\\s]/g, "").trim();
-            }
-            function cleanField(field) {
-                if (!field) return "";
-                return String(field).replace(/[-\/\\\s\r\n,;.]/g, "").trim();
-            }
-
-            /* 安全数值转换：解析失败时返回0 */
-            function parseNumber(value) {
-                const num = parseInt(value, 10);
-                return isNaN(num) ? 0 : num;
-            }
-
-            /**
-         * 合并本地存储数据与新解析数据，返回合并后的本地数据
-         * 
-         * 合并逻辑：
-         * 1. 使用配件编码（第3列）作为唯一标识
-         * 2. 对比新旧数据的以下关键列：
-         *    - 第3列（索引2）：配件编码
-         *    - 第11列（索引10）：报价
-         *    - 第14列（索引13）：风险规则
-         *    - 第15列（索引14）：备注信息
-         * 
-         * @param {Array} filteredData - 新解析的CSV数据
-         * @returns {Array} 合并后的本地数据
-         */
-            function mergeCSVData2(filteredData) {
-                // 获取本地数据并建立编码映射
-                const localData = GM_getValue("CSV_配件编码");
-                const localMap = new Map(localData.map(row => [cleanField(row[2]), row]));
-
-                // 差异项收集器
-                const changes = [];
-
-                filteredData.forEach(newRow => {
-                    const key = cleanField(newRow[2]);
-                    const oldRow = localMap.get(key);
-
-                    // 新增记录直接标记
-                    if (!oldRow) {
-                        changes.push(newRow);
-                        return;
-                    }
-
-                    // 关键列对比（使用安全取值）
-                    const criticalFields = [
-                        [2, 10],   // 编码和报价列
-                        [13, 14]   // 风险规则和备注信息列
-                    ].some(([col1, col2]) =>
-                        (newRow[col1] || '').trim() !== (oldRow[col1] || '').trim() ||
-                        (newRow[col2] || '').trim() !== (oldRow[col2] || '').trim()
-                    );
-
-                    if (criticalFields) {
-                        changes.push({ ...oldRow, ...newRow }); // 保留旧数据其他字段
-                    }
-                });
-                GM_notification("新增数据", `${changes.length}条`);
-                console.log("新增数据:", changes);
-                return [...localData, ...changes];
-            }
-
-
-            function mergeCSVData(filteredData) {
-                // 获取本地数据并建立编码映射
-                const localData = GM_getValue("CSV_配件编码") || [];
-                
-                // 如果本地没有数据，直接返回新数据
-                if (!localData || localData.length === 0) {
-                    GM_notification("新增数据", `${filteredData.length}条`);
-                    console.log("新增数据:", filteredData);
-                    return filteredData;
-                }
-                
-                const localMap = new Map();
-                // 使用配件编码作为键建立映射
-                localData.forEach(row => {
-                    const key = cleanField(row[2]);
-                    if (key) localMap.set(key, row);
-                });
-            
-                // 差异项收集器
-                const changes = [];
-                const updatedData = [...localData]; // 创建本地数据副本
-            
-                filteredData.forEach(newRow => {
-                    const key = cleanField(newRow[2]);
-                    if (!key) return; // 跳过无效编码
-                    
-                    const oldRow = localMap.get(key);
-            
-                    // 新增记录直接添加
-                    if (!oldRow) {
-                        changes.push(newRow);
-                        updatedData.push(newRow);
-                        return;
-                    }
-            
-                    // 关键列对比（使用安全取值）
-                    const hasChanges = [
-                        [2, 10],   // 编码和报价列
-                        [13, 14]   // 风险规则和备注信息列
-                    ].some(([col1, col2]) => {
-                        const oldVal1 = (oldRow[col1] || '').toString().trim();
-                        const newVal1 = (newRow[col1] || '').toString().trim();
-                        const oldVal2 = (oldRow[col2] || '').toString().trim();
-                        const newVal2 = (newRow[col2] || '').toString().trim();
-                        
-                        return oldVal1 !== newVal1 || oldVal2 !== newVal2;
-                    });
-            
-                    if (hasChanges) {
-                        // 创建更新后的行（保持数组结构）
-                        const updatedRow = [...oldRow];
-                        // 只更新关键字段
-                        [2, 10, 13, 14].forEach(idx => {
-                            if (newRow[idx] !== undefined) {
-                                updatedRow[idx] = newRow[idx];
-                            }
-                        });
-                        
-                        changes.push(updatedRow);
-                        
-                        // 更新本地数据中对应的行
-                        const index = updatedData.findIndex(row => cleanField(row[2]) === key);
-                        if (index !== -1) {
-                            updatedData[index] = updatedRow;
-                        }
-                    }
-                });
-                
-                if (changes.length > 0) {
-                    GM_notification("更新数据", `${changes.length}条`);
-                    console.log("更新数据:", changes);
-                } else {
-                    GM_notification("数据检查", "没有新增或更新的数据");
-                }
-                
-                // 返回更新后的完整数据集
-                return updatedData;
-            }
-
-        }
-
-        // 为读取按钮添加点击事件
-        btn_readcsv.addEventListener("click", function () {
-            const file = fileInput.files[0];
-            if (file) {
-                readCSV(file);
-            } else {
-                alert("请先选择一个CSV文件");
-            }
-        });
-
-        function export2CSV(array, filename) {
-            function downloadCSV(array, filename = "配件编码.csv") {
-                let csvContent = "\uFEFF"; // 添加 BOM
-
-                array.forEach(function (rowArray) {
-                    let row = rowArray.join(",");
-                    csvContent += row.replace("\n\n", "") + "\n";
-                });
-
-                const blob = new Blob([csvContent], {
-                    type: "text/csv;charset=utf-8;",
-                });
-                const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", filename);
-                document.body.appendChild(link); // Required for FF
-
-                link.click();
-                document.body.removeChild(link);
-            }
-
-            const headers = [
-                "序号",
-                "零件名称",
-                "零件编码",
-                "车辆型号",
-                "车架号",
-                "案件号",
-                "车牌",
-                "事故号",
-                "节点号",
-                "待定项",
-                "本地报价",
-                "配件品质",
-                "系统参考价",
-                "风险规则",
-                "备注信息",
-            ];
-            array.unshift(headers);
-            downloadCSV(array, filename);
-        }
-
-        // 为导出按钮添加点击事件
-        btn_exportcsv.addEventListener("click", function () {
-            const array = GM_getValue("CSV_配件编码");
-            // 获取当前时间并格式化
-            const now = new Date();
-            const formattedDate = `${now.getFullYear()}${(now.getMonth() + 1)
-                .toString()
-                .padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}${now
-                    .getHours()
-                    .toString()
-                    .padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${now
-                        .getSeconds()
-                        .toString()
-                        .padStart(2, "0")}`;
-
-            const filename = `配件编码${formattedDate}.csv`;
-            export2CSV(array, filename);
-        });
-
-        const header = document.createElement("span");
-        header.textContent = "配件代码风险(CSV文件)";
-
-        // 将文件选择控件和读取按钮添加到div中
-        div_csv.appendChild(header);
-        div_csv.appendChild(fileInput);
-        div_csv.appendChild(btn_readcsv);
-        div_csv.appendChild(btn_exportcsv);
-
-        return div_csv;
-    }
-
-    container.appendChild(createExcel_div());
-
-    container.appendChild(createCSV_div());
-
-    container.appendChild(createflesh_div());
-
-    //```````````````````````````````````````````````
-
-    return container;
+	// 添加函数内变量存储Excel数据
+	let excelData = null;
+
+	const buttonStyles = {
+		display: "none",
+		width: "100%",
+		padding: "5px",
+		backgroundColor: "#007bff",
+		color: "white",
+		border: "none",
+		borderRadius: "4px",
+		cursor: "pointer"
+	};
+
+	const container = document.createElement("div");
+	container.style.backgroundColor = "white";
+	container.style.padding = "10px";
+	container.style.width = "100%"; // 设置div的宽度
+	container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
+
+	function createExcel_div() {
+		const excelDiv = document.createElement("div");
+		container.style.backgroundColor = "white";
+		container.style.padding = "10px";
+		container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
+
+		const input_excel = document.createElement("input");
+		input_excel.type = "file";
+		input_excel.id = "excelFile";
+		input_excel.accept = ".csv, .xlsx, .xls";
+		input_excel.style.display = "block";
+		input_excel.style.width = "100%"; // 设置文件选择控件的宽度为100%
+
+		// 新增信息展示区域
+		const excel_infoDiv = document.createElement("div");
+		excel_infoDiv.id = "excelInfo";
+		excel_infoDiv.style.margin = "10px 0";
+		excel_infoDiv.style.padding = "10px";
+		excel_infoDiv.style.backgroundColor = "#f8f9fa";
+		excel_infoDiv.style.borderRadius = "4px";
+		excel_infoDiv.style.display = "none"; // 默认隐藏
+
+		// 创建信息展示元素
+		const fileNameEl = document.createElement("div");
+		fileNameEl.style.fontSize = "14px";
+
+		const modifyTimeEl = document.createElement("div");
+		modifyTimeEl.style.fontSize = "12px";
+		modifyTimeEl.style.color = "#6c757d";
+
+		const sheetsEl = document.createElement("div");
+		sheetsEl.style.fontSize = "12px";
+		sheetsEl.style.color = "#28a745";
+
+		excel_infoDiv.appendChild(fileNameEl);
+		excel_infoDiv.appendChild(modifyTimeEl);
+		excel_infoDiv.appendChild(sheetsEl);
+
+		// 更新信息显示的函数
+		function updateInfoDisplay() {
+			if (excelData?.data) {
+				fileNameEl.textContent = `文件名：${excelData.filename}`;
+				modifyTimeEl.textContent = `最后修改：${new Date(
+					excelData.lastModified
+				).toLocaleString()}`;
+				sheetsEl.textContent = `包含工作表：${Object.keys(excelData.data).join(
+					", "
+				)}`;
+				excel_infoDiv.style.display = "block";
+			} else {
+				excel_infoDiv.style.display = "none";
+			}
+		}
+
+		const btn_updatelocal = document.createElement("button");
+		Object.assign(btn_updatelocal.style, buttonStyles);
+		btn_updatelocal.textContent = "更新本地数据";
+
+		// 修改原有的事件监听，确保数据存储到全局变量
+		// 修改事件监听部分（修复核心错误）
+		input_excel.addEventListener("change", function () {
+			const file = input_excel.files[0]; // 关键修复：获取第一个文件
+			file && readExcel(file);
+		});
+
+		btn_updatelocal.addEventListener("click", function () {
+			const updatedata = handlexcelData(excelData);
+			if (updatedata) {
+				// 更新本地数据
+				// const tempdata = updatedata[0]
+				const lastModified = updatedata[1];
+				// console.log(updatedata)
+				const localdata = GM_getValue("合作维修厂");
+				if (!localdata || localdata[1] < lastModified) {
+					GM_setValue("合作维修厂", updatedata);
+					GM_notification({
+						text: `本地数据已更新,数据时间${lastModified}`,
+						title: "数据更新",
+						timeout: 3000,
+					});
+				} else {
+					GM_notification({
+						text: `未更新,修改时间需晚于本地数据时间${lastModified}`,
+						title: "数据更新",
+						timeout: 3000,
+					});
+				}
+			}
+		});
+
+		// 读取Excel函数
+		function readExcel(file) {
+			const reader = new FileReader();
+			reader.onload = function (e) {
+				try {
+					const data = e.target.result;
+					const workbook = XLSX.read(data, { type: "binary" });
+
+					// 存储所有工作表数据
+					const sheetsData = {};
+
+					// 遍历所有工作表
+					workbook.SheetNames.forEach((sheetName) => {
+						const worksheet = workbook.Sheets[sheetName];
+
+						// 检查是否为空表
+						if (!worksheet["!ref"]) return; // 跳过空表
+						const range = XLSX.utils.decode_range(worksheet["!ref"]);
+						if (range.e.r - range.s.r < 1) return; // 行数小于1视为空表
+
+						// 转换工作表数据
+						sheetsData[sheetName] = XLSX.utils.sheet_to_json(worksheet, {
+							header: 1,
+							defval: "", // 处理空单元格
+						});
+					});
+
+					// 检查是否有有效数据
+					if (Object.keys(sheetsData).length === 0) {
+						throw new Error("工作簿中没有有效的工作表");
+					}
+
+					excelData = {
+						filename: file.name,
+						lastModified: new Date(file.lastModified).toISOString(),
+						data: sheetsData,
+					};
+					console.log("读取完成", excelData);
+					if (excelData) {
+						btn_updatelocal.style.display = "block";
+						updateInfoDisplay(); // 新增：更新信息显示
+					}
+				} catch (error) {
+					console.error("文件解析失败:", error);
+					alert(`文件解析错误: ${error.message}`);
+				}
+			};
+
+			reader.onerror = function (e) {
+				console.error("文件读取失败:", e.target.error);
+				alert("文件读取失败，请检查文件格式");
+			};
+
+			reader.readAsBinaryString(file);
+		}
+
+		// 创建导出按钮
+		const btn_Export = document.createElement("button");
+		btn_Export.textContent = "导出Excel";
+		btn_Export.style.cssText = btn_updatelocal.style.cssText; // 复用读取按钮样式
+		btn_Export.style.backgroundColor = "#28a745"; // 使用绿色区分
+		btn_Export.addEventListener("click", exportExcel);
+
+		// 导出Excel函数
+		function exportExcel() {
+			if (!excelData?.data) {
+				alert("请先读取有效的Excel文件");
+				return;
+			}
+
+			// 创建工作簿
+			const workbook = XLSX.utils.book_new();
+
+			// 遍历所有工作表
+			Object.entries(excelData.data).forEach(([sheetName, sheetData]) => {
+				// 将二维数组转换为工作表
+				const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+				// 添加工作表到工作簿
+				XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+			});
+
+			// 生成文件名（保留原文件名基础）
+			const originalName = excelData.filename.replace(/\.[^/.]+$/, ""); // 移除原有扩展名
+			const timestamp = new Date()
+				.toISOString()
+				.replace(/[:.]/g, "-")
+				.slice(0, 19);
+			const filename = `${originalName}_导出_${timestamp}.xlsx`;
+
+			// 写入文件并下载
+			XLSX.writeFile(workbook, filename);
+			console.log("导出完成", {
+				文件名: filename,
+				包含工作表: Object.keys(excelData.data),
+			});
+		}
+
+		const header = document.createElement("span");
+		header.textContent = "维修厂信息Excel文件";
+
+		excelDiv.appendChild(header);
+		excelDiv.appendChild(input_excel);
+		excelDiv.appendChild(btn_updatelocal);
+		excelDiv.appendChild(btn_Export);
+		excelDiv.appendChild(excel_infoDiv);
+
+		return excelDiv;
+	}
+
+	function createflesh_div() {
+		const flesh_div = document.createElement("div");
+		container.style.backgroundColor = "white";
+		container.style.padding = "10px";
+		container.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
+
+		// 在原有按钮之后添加刷新按钮
+		const btn_refresh = document.createElement("button");
+		Object.assign(btn_refresh.style, buttonStyles);
+		btn_refresh.textContent = "刷新本地数据";
+		btn_refresh.style.backgroundColor = "#ffc107"; // 使用黄色区分
+		btn_refresh.style.display = "block";
+		btn_refresh.addEventListener("click", refreshLocalData);
+
+		// 创建本地数据展示区域
+		const localDataInfo = document.createElement("div");
+		localDataInfo.id = "localDataInfo";
+		localDataInfo.style.margin = "10px 0";
+		localDataInfo.style.padding = "10px";
+		localDataInfo.style.backgroundColor = "#fff3cd";
+		localDataInfo.style.borderRadius = "4px";
+
+		// 创建三个数据展示框
+		const dataBox1 = createDataBox("data1");
+		const dataBox2 = createDataBox("data2");
+		const dataBox3 = createDataBox("data3");
+
+		localDataInfo.appendChild(dataBox1);
+		localDataInfo.appendChild(dataBox2);
+		localDataInfo.appendChild(dataBox3);
+
+		flesh_div.appendChild(btn_refresh);
+		flesh_div.appendChild(localDataInfo);
+
+		// 辅助函数：创建统一样式的数据框
+		function createDataBox(id) {
+			const box = document.createElement("div");
+			box.id = id;
+			box.style.padding = "8px";
+			box.style.margin = "5px 0";
+			box.style.backgroundColor = "white";
+			box.style.border = "1px solid #ffeeba";
+			box.textContent = "待加载数据..."; // 初始占位文本
+			return box;
+		}
+
+		// 刷新本地数据函数
+		function refreshLocalData() {
+			const localData = GM_getValue("合作维修厂");
+			initialize();
+			if (localData) {
+				dataBox1.textContent = `总记录数: ${Object.keys(合作维修厂).length || 0
+					}`;
+				dataBox2.textContent = `最新时间: ${localData[1] || "未知"}`;
+				dataBox3.textContent = `风险配件数: ${Object.keys(配件编码风险).length
+					}`;
+			} else {
+				dataBox1.textContent = "总记录数: 0";
+				dataBox2.textContent = "最新时间: 无数据";
+				dataBox3.textContent = "数据状态: 未初始化";
+			}
+		}
+
+		return flesh_div;
+	}
+
+	//新增CSV配件风险数据的操作````````````````````````````
+	function createCSV_div() {
+		// 创建一个div_csv容器
+		const div_csv = document.createElement("div");
+		//   div_csv.style.backgroundColor = "white";
+		div_csv.style.padding = "10px";
+		div_csv.style.width = "100%"; // 设置div的宽度
+		div_csv.style.boxSizing = "border-box"; // 确保padding和border包含在宽度内
+
+		// 创建文件选择控件
+		const fileInput = document.createElement("input");
+		fileInput.type = "file";
+		fileInput.accept = ".csv";
+		fileInput.style.display = "block";
+		fileInput.style.width = "100%"; // 设置文件选择控件的宽度为100%
+		fileInput.style.marginBottom = "10px";
+
+		// 创建读取按钮
+		const btn_readcsv = document.createElement("button");
+		Object.assign(btn_readcsv.style, buttonStyles);
+		btn_readcsv.textContent = "读取CSV";
+		btn_readcsv.style.display = "block";
+
+		// 创建导出按钮
+		const btn_exportcsv = document.createElement("button");
+		Object.assign(btn_exportcsv.style, buttonStyles);
+		btn_exportcsv.textContent = "导出CSV";
+		btn_exportcsv.style.display = "block";
+
+
+
+		/**
+	 * 读取并解析CSV文件，过滤空行和空白字段，保存处理后的数据
+	 * 
+	 * 功能描述：
+	 * 1. 使用FileReader读取CSV文件内容
+	 * 2. 执行两次过滤：首次过滤全空行，二次过滤兼容不同换行符的残留空行
+	 * 3. 分离标题行和数据行，仅保留有效数据行
+	 * 4. 使用GM_setValue存储处理后的数据，并发送通知
+	 * 
+	 * @param {File} file - 要读取的CSV文件对象
+	 */
+		function readCSV(file) {
+			const reader = new FileReader();
+			reader.readAsText(file);
+			reader.onload = function (event) {
+				try {
+					const csvData = event.target.result;
+
+					/* 核心解析流程：分割行->拆解列->过滤全空行 */
+					const rows = csvData.split("\n")
+						.map(row => row.split(","))
+						.filter(row => !row.every(field => isBlankField(field)));
+
+					/* 结构分离：解构获取标题行和后续数据行 */
+					const [headers, ...dataRows] = rows;
+
+					/* 二次过滤：排除单列行和残留空行（处理\r\n换行符情况） */
+					const filteredData = dataRows.filter(row =>
+						row.length > 1 && !row.every(field => isBlankField(field))
+					);
+
+					/* 检查合并数据 */
+					const mergeData = mergeCSVData(filteredData)
+
+					/* 持久化存储与用户反馈 */
+					GM_setValue("CSV_配件编码", mergeData);
+					console.log("CSV数据已处理保存：", mergeData);
+					GM_notification("数据处理完成", `有效记录：${mergeData.length}条`);
+
+				} catch (error) {
+					console.error("处理失败：", error);
+					GM_notification("处理失败", error.message);
+				}
+			};
+
+			/* 判断字段是否为空：包含空白字符/换行符的视为空 */
+			function isBlankField(field) {
+				return !field || field.replace(/[\r\n\s]/g, "").trim() === "";
+			}
+
+			/* 字段清洗：移除特定符号和空白字符 */
+			function cleanField2(field) {
+				return (field || "").replace(/[-\/\\\s]/g, "").trim();
+			}
+			function cleanField(field) {
+				if (!field) return "";
+				return String(field).replace(/[-\/\\\s\r\n,;.]/g, "").trim();
+			}
+
+			/* 安全数值转换：解析失败时返回0 */
+			function parseNumber(value) {
+				const num = parseInt(value, 10);
+				return isNaN(num) ? 0 : num;
+			}
+
+			/**
+		 * 合并本地存储数据与新解析数据，返回合并后的本地数据
+		 * 
+		 * 合并逻辑：
+		 * 1. 使用配件编码（第3列）作为唯一标识
+		 * 2. 对比新旧数据的以下关键列：
+		 *    - 第3列（索引2）：配件编码
+		 *    - 第11列（索引10）：报价
+		 *    - 第14列（索引13）：风险规则
+		 *    - 第15列（索引14）：备注信息
+		 * 
+		 * @param {Array} filteredData - 新解析的CSV数据
+		 * @returns {Array} 合并后的本地数据
+		 */
+			function mergeCSVData2(filteredData) {
+				// 获取本地数据并建立编码映射
+				const localData = GM_getValue("CSV_配件编码");
+				const localMap = new Map(localData.map(row => [cleanField(row[2]), row]));
+
+				// 差异项收集器
+				const changes = [];
+
+				filteredData.forEach(newRow => {
+					const key = cleanField(newRow[2]);
+					const oldRow = localMap.get(key);
+
+					// 新增记录直接标记
+					if (!oldRow) {
+						changes.push(newRow);
+						return;
+					}
+
+					// 关键列对比（使用安全取值）
+					const criticalFields = [
+						[2, 10],   // 编码和报价列
+						[13, 14]   // 风险规则和备注信息列
+					].some(([col1, col2]) =>
+						(newRow[col1] || '').trim() !== (oldRow[col1] || '').trim() ||
+						(newRow[col2] || '').trim() !== (oldRow[col2] || '').trim()
+					);
+
+					if (criticalFields) {
+						changes.push({ ...oldRow, ...newRow }); // 保留旧数据其他字段
+					}
+				});
+				GM_notification("新增数据", `${changes.length}条`);
+				console.log("新增数据:", changes);
+				return [...localData, ...changes];
+			}
+
+
+			function mergeCSVData(filteredData) {
+				// 获取本地数据并建立编码映射
+				const localData = GM_getValue("CSV_配件编码") || [];
+
+				// 如果本地没有数据，直接返回新数据
+				if (!localData || localData.length === 0) {
+					GM_notification("新增数据", `${filteredData.length}条`);
+					console.log("新增数据:", filteredData);
+					return filteredData;
+				}
+
+				const localMap = new Map();
+				// 使用配件编码作为键建立映射
+				localData.forEach(row => {
+					const key = cleanField(row[2]);
+					if (key) localMap.set(key, row);
+				});
+
+				// 差异项收集器
+				const changes = [];
+				const updatedData = [...localData]; // 创建本地数据副本
+
+				filteredData.forEach(newRow => {
+					const key = cleanField(newRow[2]);
+					if (!key) return; // 跳过无效编码
+
+					const oldRow = localMap.get(key);
+
+					// 新增记录直接添加
+					if (!oldRow) {
+						changes.push(newRow);
+						updatedData.push(newRow);
+						return;
+					}
+
+					// 关键列对比（使用安全取值）
+					const hasChanges = [
+						[2, 10],   // 编码和报价列
+						[13, 14]   // 风险规则和备注信息列
+					].some(([col1, col2]) => {
+						const oldVal1 = (oldRow[col1] || '').toString().trim();
+						const newVal1 = (newRow[col1] || '').toString().trim();
+						const oldVal2 = (oldRow[col2] || '').toString().trim();
+						const newVal2 = (newRow[col2] || '').toString().trim();
+
+						return oldVal1 !== newVal1 || oldVal2 !== newVal2;
+					});
+
+					if (hasChanges) {
+						// 创建更新后的行（保持数组结构）
+						const updatedRow = [...oldRow];
+						// 只更新关键字段
+						[2, 10, 13, 14].forEach(idx => {
+							if (newRow[idx] !== undefined) {
+								updatedRow[idx] = newRow[idx];
+							}
+						});
+
+						changes.push(updatedRow);
+
+						// 更新本地数据中对应的行
+						const index = updatedData.findIndex(row => cleanField(row[2]) === key);
+						if (index !== -1) {
+							updatedData[index] = updatedRow;
+						}
+					}
+				});
+
+				if (changes.length > 0) {
+					GM_notification("更新数据", `${changes.length}条`);
+					console.log("更新数据:", changes);
+				} else {
+					GM_notification("数据检查", "没有新增或更新的数据");
+				}
+
+				// 返回更新后的完整数据集
+				return updatedData;
+			}
+
+		}
+
+		// 为读取按钮添加点击事件
+		btn_readcsv.addEventListener("click", function () {
+			const file = fileInput.files[0];
+			if (file) {
+				readCSV(file);
+			} else {
+				alert("请先选择一个CSV文件");
+			}
+		});
+
+		function export2CSV(array, filename) {
+			function downloadCSV(array, filename = "配件编码.csv") {
+				let csvContent = "\uFEFF"; // 添加 BOM
+
+				array.forEach(function (rowArray) {
+					let row = rowArray.join(",");
+					csvContent += row.replace("\n\n", "") + "\n";
+				});
+
+				const blob = new Blob([csvContent], {
+					type: "text/csv;charset=utf-8;",
+				});
+				const link = document.createElement("a");
+				const url = URL.createObjectURL(blob);
+				link.setAttribute("href", url);
+				link.setAttribute("download", filename);
+				document.body.appendChild(link); // Required for FF
+
+				link.click();
+				document.body.removeChild(link);
+			}
+
+			const headers = [
+				"序号",
+				"零件名称",
+				"零件编码",
+				"车辆型号",
+				"车架号",
+				"案件号",
+				"车牌",
+				"事故号",
+				"节点号",
+				"待定项",
+				"本地报价",
+				"配件品质",
+				"系统参考价",
+				"风险规则",
+				"备注信息",
+			];
+			array.unshift(headers);
+			downloadCSV(array, filename);
+		}
+
+		// 为导出按钮添加点击事件
+		btn_exportcsv.addEventListener("click", function () {
+			const array = GM_getValue("CSV_配件编码");
+			// 获取当前时间并格式化
+			const now = new Date();
+			const formattedDate = `${now.getFullYear()}${(now.getMonth() + 1)
+				.toString()
+				.padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}${now
+					.getHours()
+					.toString()
+					.padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${now
+						.getSeconds()
+						.toString()
+						.padStart(2, "0")}`;
+
+			const filename = `配件编码${formattedDate}.csv`;
+			export2CSV(array, filename);
+		});
+
+		const header = document.createElement("span");
+		header.textContent = "配件代码风险(CSV文件)";
+
+		// 将文件选择控件和读取按钮添加到div中
+		div_csv.appendChild(header);
+		div_csv.appendChild(fileInput);
+		div_csv.appendChild(btn_readcsv);
+		div_csv.appendChild(btn_exportcsv);
+
+		return div_csv;
+	}
+
+	container.appendChild(createExcel_div());
+
+	container.appendChild(createCSV_div());
+
+	container.appendChild(createflesh_div());
+
+	//```````````````````````````````````````````````
+
+	return container;
 }
 
 
 // 处理修理厂等级数据,传入data是修理厂信息列表sheet的数据;输出是一个字典,键是修理厂名称,值是一个list,[等级,是否4S店,厂方指导价平均折扣系数,品牌件价平均折扣系数]
 function handlexcelData(excelData) {
-    const data = excelData.data['修理厂信息列表'];
-    if (!data) {
-        alert('未找到修理厂信息列表');
-        return;
-    }
-    // 处理数据
-    if (data[0].includes('修理厂信息列表')) { data.shift(); }
+	const data = excelData.data['修理厂信息列表'];
+	if (!data) {
+		alert('未找到修理厂信息列表');
+		return;
+	}
+	// 处理数据
+	if (data[0].includes('修理厂信息列表')) { data.shift(); }
 
-    const header = data[0];
-    // 把header里面的元素转化为其对应的序号
-    const idx = {};
-    header.forEach((item, index) => { idx[item] = index; });
-    //从data的第二行开始遍历所有数据
-    const lvdict = {}
-    // const lvlist = [] // 用于存储等级,子元素分别是[是否4S店,等级,厂方指导价平均折扣系数,品牌件价平均折扣系数]
-    for (let i = 1; i < data.length; i++) {
-        let level
-        const row = data[i];
-        // 通过header的序号找到对应的数据
-        const 修理厂名称 = row[idx['修理厂名称']];
-        const 是否4S店 = parseInt(row[idx['是否4S店']]);
-        const 厂方指导价平均折扣系数 = parseInt(row[idx['厂方指导价平均折扣系数']]) ? parseInt(row[idx['厂方指导价平均折扣系数']]) : 0;
-        const 品牌件价平均折扣系数 = parseInt(row[idx['品牌件价平均折扣系数']]) ? parseInt(row[idx['品牌件价平均折扣系数']]) : 0;
-        if (是否4S店) {
-            level = 厂方指导价平均折扣系数
-        }
-        else {
-            if (厂方指导价平均折扣系数 >= 70) { level = 6 }
-            else if (厂方指导价平均折扣系数 >= 65) { level = 5 }
-            else if (厂方指导价平均折扣系数 >= 60) { level = 4 }
-            else if (厂方指导价平均折扣系数 >= 55) { level = 3 }
-            else if (品牌件价平均折扣系数 >= 120) { level = 2 }
-            else if (品牌件价平均折扣系数 >= 110) { level = 1 }
-            else { level = 0 }
-        }
-        lvdict[修理厂名称] = [level, 是否4S店, 厂方指导价平均折扣系数, 品牌件价平均折扣系数]
-        // lvdict[修理厂名称]={"等级":level,"厂方指导价平均折扣系数":厂方指导价平均折扣系数,"品牌件价平均折扣系数":品牌件价平均折扣系数}
-    }
+	const header = data[0];
+	// 把header里面的元素转化为其对应的序号
+	const idx = {};
+	header.forEach((item, index) => { idx[item] = index; });
+	//从data的第二行开始遍历所有数据
+	const lvdict = {}
+	// const lvlist = [] // 用于存储等级,子元素分别是[是否4S店,等级,厂方指导价平均折扣系数,品牌件价平均折扣系数]
+	for (let i = 1; i < data.length; i++) {
+		let level
+		const row = data[i];
+		// 通过header的序号找到对应的数据
+		const 修理厂名称 = row[idx['修理厂名称']];
+		const 是否4S店 = parseInt(row[idx['是否4S店']]);
+		const 厂方指导价平均折扣系数 = parseInt(row[idx['厂方指导价平均折扣系数']]) ? parseInt(row[idx['厂方指导价平均折扣系数']]) : 0;
+		const 品牌件价平均折扣系数 = parseInt(row[idx['品牌件价平均折扣系数']]) ? parseInt(row[idx['品牌件价平均折扣系数']]) : 0;
+		if (是否4S店) {
+			level = 厂方指导价平均折扣系数
+		}
+		else {
+			if (厂方指导价平均折扣系数 >= 70) { level = 6 }
+			else if (厂方指导价平均折扣系数 >= 65) { level = 5 }
+			else if (厂方指导价平均折扣系数 >= 60) { level = 4 }
+			else if (厂方指导价平均折扣系数 >= 55) { level = 3 }
+			else if (品牌件价平均折扣系数 >= 120) { level = 2 }
+			else if (品牌件价平均折扣系数 >= 110) { level = 1 }
+			else { level = 0 }
+		}
+		lvdict[修理厂名称] = [level, 是否4S店, 厂方指导价平均折扣系数, 品牌件价平均折扣系数]
+		// lvdict[修理厂名称]={"等级":level,"厂方指导价平均折扣系数":厂方指导价平均折扣系数,"品牌件价平均折扣系数":品牌件价平均折扣系数}
+	}
 
-    return [lvdict, excelData.lastModified]
+	return [lvdict, excelData.lastModified]
 }
 
 
 //车辆损失信息表格
 async function createCarLossInfoTable(carInfo, iframe) {
-    const tableId = 'GMcarlossinfo';
-    const targetId = '#lossDetInfo';
+	const tableId = 'GMcarlossinfo';
+	const targetId = '#lossDetInfo';
 
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-    if (iframeDoc.getElementById(tableId)) return;
+	const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+	if (iframeDoc.getElementById(tableId)) return;
 
-    try {
-        const targetElement = await async_querySelector(targetId, { parent: iframeDoc });
-        if (!targetElement) return;
+	try {
+		const targetElement = await async_querySelector(targetId, { parent: iframeDoc });
+		if (!targetElement) return;
 
-        // 创建表格
-        const table = iframeDoc.createElement('table');
-        table.id = tableId;
-        table.className = 'carloss-table'; // 添加类名
-        table.style.cssText = `
+		// 创建表格
+		const table = iframeDoc.createElement('table');
+		table.id = tableId;
+		table.className = 'carloss-table'; // 添加类名
+		table.style.cssText = `
             margin: 12px 0;
             border-collapse: collapse;
             font-family: Arial, sans-serif;
@@ -4600,11 +4478,11 @@ async function createCarLossInfoTable(carInfo, iframe) {
         `;
 
 
-        // 样式表（避免重复注入）
-        if (!iframeDoc.querySelector('#carloss-style')) {
-            const style = iframeDoc.createElement('style');
-            style.id = 'carloss-style';
-            style.textContent = `
+		// 样式表（避免重复注入）
+		if (!iframeDoc.querySelector('#carloss-style')) {
+			const style = iframeDoc.createElement('style');
+			style.id = 'carloss-style';
+			style.textContent = `
                 .carloss-table td {
                     padding: 8px 12px;
                     /* border: 1px solid #e0e0e0;*/ /* 添加边框就取消注释 */
@@ -4625,99 +4503,99 @@ async function createCarLossInfoTable(carInfo, iframe) {
                     font-weight: bold;
                 }
             `;
-            iframeDoc.head.appendChild(style);
-        }
+			iframeDoc.head.appendChild(style);
+		}
 
-        // 表格构建函数
-        const createRow = (items) => {
-            const tr = iframeDoc.createElement('tr');
-            items.forEach(({ label, value, isHighlight }) => {
-                const tdLabel = iframeDoc.createElement('td');
-                tdLabel.className = 'label';
-                tdLabel.textContent = label;
+		// 表格构建函数
+		const createRow = (items) => {
+			const tr = iframeDoc.createElement('tr');
+			items.forEach(({ label, value, isHighlight }) => {
+				const tdLabel = iframeDoc.createElement('td');
+				tdLabel.className = 'label';
+				tdLabel.textContent = label;
 
-                const tdValue = iframeDoc.createElement('td');
-                tdValue.className = `value ${isHighlight ? 'highlight' : ''}`;
-                tdValue.textContent = value || '-';
+				const tdValue = iframeDoc.createElement('td');
+				tdValue.className = `value ${isHighlight ? 'highlight' : ''}`;
+				tdValue.textContent = value || '-';
 
-                tr.appendChild(tdLabel);
-                tr.appendChild(tdValue);
-            });
-            return tr;
-        };
+				tr.appendChild(tdLabel);
+				tr.appendChild(tdValue);
+			});
+			return tr;
+		};
 
-        // 构建内容
+		// 构建内容
 
-        table.appendChild(createRow([
-            { label: '报案号', value: carInfo.get("报案号") },
-            { label: '理赔险别', value: carInfo.get("理赔险别") },
-            { label: '定损方式', value: carInfo.get("定损方式") },
-            // { label: '是否水淹车', value: carInfo.get("是否水淹车") },
-        ]));
-
-
-        table.appendChild(createRow([
-            { label: carInfo.get("损失方"), value: carInfo.get("车牌号") },
-            { label: '车主', value: carInfo.get("车主") },
-
-        ]));
-
-        table.appendChild(createRow([
-            { label: '车架号', value: `${carInfo.get("车架号")} (${carInfo.get("车架年份")})` },
-            { label: '初登日期', value: carInfo.get("初登日期") },
-            { label: '实际价值', value: carInfo.get("实际价值") },
-        ]));
-
-        table.appendChild(createRow([
-            { label: '车型名称', value: carInfo.get("车型名称") },
-            { label: '车辆品牌', value: carInfo.get("车辆品牌") },
-        ]));
-
-        // table.appendChild(createRow([]));
-
-        table.appendChild(createRow([
-            { label: `${carInfo.get("是否合作")}${carInfo.get("维修厂类型")}`, value: `${carInfo.get("修理厂名称")} ${carInfo.get("合作等级")}` },
-        ]));
-
-        // 插入表格
-        targetElement.insertBefore(table, targetElement.firstChild);
-
-        /*********************​ 新增调用 ​*********************/
-        // 创建计算器（必须在表格创建后执行）
-        createCalculator(iframe);  // <--- 关键调用点
-        /****************************************************/
+		table.appendChild(createRow([
+			{ label: '报案号', value: carInfo.get("报案号") },
+			{ label: '理赔险别', value: carInfo.get("理赔险别") },
+			{ label: '定损方式', value: carInfo.get("定损方式") },
+			// { label: '是否水淹车', value: carInfo.get("是否水淹车") },
+		]));
 
 
-        /*********************​ 新增调用 ​*********************/
-        // 创建查勘信息显示框
-        const container = createCheckinfoDiv(carInfo.get("报案号"), iframe)
-        //把container插入到table的后面
-        targetElement.insertBefore(container, targetElement.firstChild);
+		table.appendChild(createRow([
+			{ label: carInfo.get("损失方"), value: carInfo.get("车牌号") },
+			{ label: '车主', value: carInfo.get("车主") },
 
-        /****************************************************/
+		]));
+
+		table.appendChild(createRow([
+			{ label: '车架号', value: `${carInfo.get("车架号")} (${carInfo.get("车架年份")})` },
+			{ label: '初登日期', value: carInfo.get("初登日期") },
+			{ label: '实际价值', value: carInfo.get("实际价值") },
+		]));
+
+		table.appendChild(createRow([
+			{ label: '车型名称', value: carInfo.get("车型名称") },
+			{ label: '车辆品牌', value: carInfo.get("车辆品牌") },
+		]));
+
+		// table.appendChild(createRow([]));
+
+		table.appendChild(createRow([
+			{ label: `${carInfo.get("是否合作")}${carInfo.get("维修厂类型")}`, value: `${carInfo.get("修理厂名称")} ${carInfo.get("合作等级")}` },
+		]));
+
+		// 插入表格
+		targetElement.insertBefore(table, targetElement.firstChild);
+
+		/*********************​ 新增调用 ​*********************/
+		// 创建计算器（必须在表格创建后执行）
+		createCalculator(iframe);  // <--- 关键调用点
+		/****************************************************/
 
 
-    } catch (error) {
-        console.error('表格创建失败:', error);
-    }
+		/*********************​ 新增调用 ​*********************/
+		// 创建查勘信息显示框
+		const container = createCheckinfoDiv(carInfo.get("报案号"), iframe)
+		//把container插入到table的后面
+		targetElement.insertBefore(container, targetElement.firstChild);
+
+		/****************************************************/
+
+
+	} catch (error) {
+		console.error('表格创建失败:', error);
+	}
 }
 
 
 
 //创建查勘信息表格
 function createCheckinfoDiv(registNo, iframe) {
-    const containerId = 'GMCheckinfo';
-    const targetId = '#lossDetInfo';
+	const containerId = 'GMCheckinfo';
+	const targetId = '#lossDetInfo';
 
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-    if (iframeDoc.getElementById(containerId)) {
-        iframeDoc.getElementById(containerId).remove();
-    }
+	const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+	if (iframeDoc.getElementById(containerId)) {
+		iframeDoc.getElementById(containerId).remove();
+	}
 
-    // 创建容器元素
-    const container = iframeDoc.createElement('div');
-    container.id = `${containerId}`;
-    container.style.cssText = `
+	// 创建容器元素
+	const container = iframeDoc.createElement('div');
+	container.id = `${containerId}`;
+	container.style.cssText = `
         background: white;
         border: 1px solid #ddd;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -4730,134 +4608,134 @@ function createCheckinfoDiv(registNo, iframe) {
         overflow-x: hidden;   // 防止内容溢出（可选）
     `;
 
-    // 创建加载提示行（包含标题和 loading）
-    const loadingLine = iframeDoc.createElement('div');
-    loadingLine.style.display = 'flex';
-    loadingLine.style.alignItems = 'center';
-    loadingLine.style.gap = '5px';
+	// 创建加载提示行（包含标题和 loading）
+	const loadingLine = iframeDoc.createElement('div');
+	loadingLine.style.display = 'flex';
+	loadingLine.style.alignItems = 'center';
+	loadingLine.style.gap = '5px';
 
-    // 添加标题
-    const title = iframeDoc.createElement('span');
-    title.textContent = '查勘信息:';
-    title.style.fontWeight = 'bold';
+	// 添加标题
+	const title = iframeDoc.createElement('span');
+	title.textContent = '查勘信息:';
+	title.style.fontWeight = 'bold';
 
-    // 添加 loading 文本
-    const loading = iframeDoc.createElement('span');
-    loading.textContent = '正在加载查勘信息...';
-    loading.style.whiteSpace = 'nowrap';  // 强制不换行
+	// 添加 loading 文本
+	const loading = iframeDoc.createElement('span');
+	loading.textContent = '正在加载查勘信息...';
+	loading.style.whiteSpace = 'nowrap';  // 强制不换行
 
-    loadingLine.appendChild(title);
-    loadingLine.appendChild(loading);
-    container.appendChild(loadingLine);
+	loadingLine.appendChild(title);
+	loadingLine.appendChild(loading);
+	container.appendChild(loadingLine);
 
-    // 轮询检测数据
-    const startTime = Date.now();
-    const checkInterval = setInterval(() => {
-        if (Date.now() - startTime > 30000) {
-            clearInterval(checkInterval);
-            loading.textContent = '数据加载超时';
-            return;
-        }
+	// 轮询检测数据
+	const startTime = Date.now();
+	const checkInterval = setInterval(() => {
+		if (Date.now() - startTime > 30000) {
+			clearInterval(checkInterval);
+			loading.textContent = '数据加载超时';
+			return;
+		}
 
-        const caseData = Cases[registNo];
-        if (caseData && caseData.RegistInfo) {
-            clearInterval(checkInterval);
-            container.removeChild(loadingLine);  // 移除整个加载行
+		const caseData = Cases[registNo];
+		if (caseData && caseData.RegistInfo) {
+			clearInterval(checkInterval);
+			container.removeChild(loadingLine);  // 移除整个加载行
 
-            try {
-                const [riskmsg, isrisk] = Common.handle_risks(caseData);
-                console.log("Cases", Cases)
-                const table = iframeDoc.createElement('table');
-                table.style.borderCollapse = 'collapse';
-                table.style.width = '100%';
+			try {
+				const [riskmsg, isrisk] = Common.handle_risks(caseData);
+				console.log("Cases", Cases)
+				const table = iframeDoc.createElement('table');
+				table.style.borderCollapse = 'collapse';
+				table.style.width = '100%';
 
-                // 添加表格标题
-                const headerRow = table.insertRow();
-                const headerCell = headerRow.insertCell();
-                headerCell.textContent = '风险信息';
-                headerCell.style.cssText = `
+				// 添加表格标题
+				const headerRow = table.insertRow();
+				const headerCell = headerRow.insertCell();
+				headerCell.textContent = '风险信息';
+				headerCell.style.cssText = `
                     padding: 8px;
                     border: 1px solid #ddd;
                     background: rgb(221, 243, 255);
                     font-weight: bold;
                 `;
 
-                headerRow.style.cursor = 'pointer';
-                headerRow.addEventListener('click', () => {
-                    Modules.GMopenJsWin(`/claim/certificateController.do?goImageQuery&imageBusiNo=${caseData.RegistInfo.accidentNo}`, jsWinId = 'certifyQueryId')
-                })
+				headerRow.style.cursor = 'pointer';
+				headerRow.addEventListener('click', () => {
+					Modules.GMopenJsWin(`/claim/certificateController.do?goImageQuery&imageBusiNo=${caseData.RegistInfo.accidentNo}`, jsWinId = 'certifyQueryId')
+				})
 
-                // 添加数据行
-                const dataRow = table.insertRow();
-                const dataCell = dataRow.insertCell();
-                dataCell.innerHTML = riskmsg;
-                dataCell.style.cssText = `
+				// 添加数据行
+				const dataRow = table.insertRow();
+				const dataCell = dataRow.insertCell();
+				dataCell.innerHTML = riskmsg;
+				dataCell.style.cssText = `
                     padding: 8px;
                     border: 1px solid #ddd;
                     background: ${isrisk ? 'rgba(255,165,0,0.2)' : 'white'};
                 `;
 
-                container.appendChild(table);
+				container.appendChild(table);
 
-            } catch (e) {
-                container.innerHTML = `信息解析失败: ${e.message}`;
-            }
-        }
-    }, 500);
+			} catch (e) {
+				container.innerHTML = `信息解析失败: ${e.message}`;
+			}
+		}
+	}, 500);
 
-    return container;
+	return container;
 }
 
 
 
 // 异步查询选择器
 function async_querySelector(selector, {
-    timeout = 5000,
-    parent = document
+	timeout = 5000,
+	parent = document
 } = {}) {
-    return new Promise((resolve, reject) => {
-        // 立即检查元素是否存在
-        const element = parent.querySelector(selector);
-        if (element) {
-            return resolve(element);
-        }
+	return new Promise((resolve, reject) => {
+		// 立即检查元素是否存在
+		const element = parent.querySelector(selector);
+		if (element) {
+			return resolve(element);
+		}
 
-        // 配置 MutationObserver
-        const observer = new MutationObserver((mutations, obs) => {
-            const foundElement = parent.querySelector(selector);
-            if (foundElement) {
-                cleanup();
-                resolve(foundElement);
-            }
-        });
+		// 配置 MutationObserver
+		const observer = new MutationObserver((mutations, obs) => {
+			const foundElement = parent.querySelector(selector);
+			if (foundElement) {
+				cleanup();
+				resolve(foundElement);
+			}
+		});
 
-        // 超时处理
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            reject(new Error(`Element "${selector}" not found within ${timeout}ms`));
-        }, timeout);
+		// 超时处理
+		const timeoutId = setTimeout(() => {
+			cleanup();
+			reject(new Error(`Element "${selector}" not found within ${timeout}ms`));
+		}, timeout);
 
-        // 清理函数
-        const cleanup = () => {
-            observer.disconnect();
-            clearTimeout(timeoutId);
-        };
+		// 清理函数
+		const cleanup = () => {
+			observer.disconnect();
+			clearTimeout(timeoutId);
+		};
 
-        // 开始观察 DOM 变化
-        observer.observe(parent, {
-            childList: true,
-            subtree: true,
-            attributes: false,
-            characterData: false
-        });
+		// 开始观察 DOM 变化
+		observer.observe(parent, {
+			childList: true,
+			subtree: true,
+			attributes: false,
+			characterData: false
+		});
 
-        // 再次检查防止竞争条件
-        const immediateCheck = parent.querySelector(selector);
-        if (immediateCheck) {
-            cleanup();
-            resolve(immediateCheck);
-        }
-    });
+		// 再次检查防止竞争条件
+		const immediateCheck = parent.querySelector(selector);
+		if (immediateCheck) {
+			cleanup();
+			resolve(immediateCheck);
+		}
+	});
 }
 
 
@@ -4891,77 +4769,77 @@ function filter_BTN(iframe) {
 
 	// 点击按钮展开对应动作
 	minimizeIcon.addEventListener("click", function () {
-        filter(iframeDocument)
+		filter(iframeDocument)
 
 	});
 
-    function filter(iframeDocument=iframeDocument){
-        // 按字符长度降序排序（避免短关键词优先匹配）
-        const sortedAreas = [...myconfig.areas].sort((a,b) => b.length - a.length); 
-        const target_iframe = iframeDocument.querySelector('iframe[src*="preTaskTodo"]')
-        if(!target_iframe) return
-        const comCNames = target_iframe.contentDocument.querySelectorAll('#receiveTaskListDIV td[field="comCName"]');
-        if(!comCNames) return
-        let i=0
-        comCNames.forEach(comCName => {
-            // 遍历所有后代元素（包括自身）
-            const elements = comCName.querySelectorAll('*'); 
-            
-            elements.forEach(el => {
-                sortedAreas.forEach(area => {
-                    // 使用正则表达式全局替换
-                    const regex = new RegExp(area, 'g');
-                    if (regex.test(el.innerHTML)) {
-                        const tr = el.closest('tr');
-                        if (tr) {
-                            // tr.style.fontWeight = 'bold';
-                            tr.style.backgroundColor = 'yellow';
-                            i++
-                        }
-                    }
-                });
-            });
+	function filter(iframeDocument = iframeDocument) {
+		// 按字符长度降序排序（避免短关键词优先匹配）
+		const sortedAreas = [...myconfig.areas].sort((a, b) => b.length - a.length);
+		const target_iframe = iframeDocument.querySelector('iframe[src*="preTaskTodo"]')
+		if (!target_iframe) return
+		const comCNames = target_iframe.contentDocument.querySelectorAll('#receiveTaskListDIV td[field="comCName"]');
+		if (!comCNames) return
+		let i = 0
+		comCNames.forEach(comCName => {
+			// 遍历所有后代元素（包括自身）
+			const elements = $$('*', comCName);
 
-        });
+			elements.forEach(el => {
+				sortedAreas.forEach(area => {
+					// 使用正则表达式全局替换
+					const regex = new RegExp(area, 'g');
+					if (regex.test(el.innerHTML)) {
+						const tr = el.closest('tr');
+						if (tr) {
+							// tr.style.fontWeight = 'bold';
+							tr.style.backgroundColor = 'yellow';
+							i++
+						}
+					}
+				});
+			});
 
-        if(i>0){
-            toastr.info(i+'个案件')
-            // console.log('筛选到',i,'条数据')
-        }
-        else{
-            toastr.success('未筛选到数据')
+		});
 
-        }
+		if (i > 0) {
+			toastr.info(i + '个案件')
+			// console.log('筛选到',i,'条数据')
+		}
+		else {
+			toastr.success('未筛选到数据')
 
-                // 绑定到iframe文档
-        target_iframe.contentDocument.addEventListener('keydown', handleKeyPress);
-        
-        // 清理时移除监听
-        target_iframe.contentDocument.addEventListener('unload', () => {
-            target_iframe.contentDocument.removeEventListener('keydown', handleKeyPress);
-            minimizeIcon.style.backgroundColor = 'white';
+		}
 
-        });
+		// 绑定到iframe文档
+		target_iframe.contentDocument.addEventListener('keydown', handleKeyPress);
 
-    }
+		// 清理时移除监听
+		target_iframe.contentDocument.addEventListener('unload', () => {
+			target_iframe.contentDocument.removeEventListener('keydown', handleKeyPress);
+			minimizeIcon.style.backgroundColor = 'white';
+
+		});
+
+	}
 
 
-    // 添加键盘监听
-    function handleKeyPress(e) {
-        // 检测左Alt + F 组合键
-        if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'q') {
-            e.preventDefault();
-            filter(iframeDocument)
-        }
-    }
+	// 添加键盘监听
+	function handleKeyPress(e) {
+		// 检测左Alt + F 组合键
+		if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'q') {
+			e.preventDefault();
+			filter(iframeDocument)
+		}
+	}
 
-    // 绑定到iframe文档
-    iframeDocument.addEventListener('keydown', handleKeyPress);
-    
-    // 清理时移除监听
-    iframeDocument.addEventListener('unload', () => {
-        iframeDocument.removeEventListener('keydown', handleKeyPress);
-    });
+	// 绑定到iframe文档
+	iframeDocument.addEventListener('keydown', handleKeyPress);
+
+	// 清理时移除监听
+	iframeDocument.addEventListener('unload', () => {
+		iframeDocument.removeEventListener('keydown', handleKeyPress);
+	});
 
 
 }
@@ -5293,9 +5171,8 @@ class Modules {
 					);
 				}
 
-				resultArea.value += `全部完成！成功：${
-					results.filter((r) => !r.error).length
-				} 失败：${results.filter((r) => r.error).length}`;
+				resultArea.value += `全部完成！成功：${results.filter((r) => !r.error).length
+					} 失败：${results.filter((r) => r.error).length}`;
 			} catch (error) {
 				if (error.name !== "AbortError") {
 					resultArea.value += `\n查询异常：${error.message}`;
@@ -5645,7 +5522,7 @@ class Modules {
 					let parser = new DOMParser();
 					let doc = parser.parseFromString(data, "text/html");
 					let tbody = doc.querySelector("#remarkText_mainRow");
-					let trs = tbody.querySelectorAll("tr");
+					let trs = $$("tr", tbody);
 
 					let items = [];
 					trs.forEach((tr) => {
@@ -5999,7 +5876,7 @@ class Modules {
 				})
 				.then((doc) => {
 					const eml_commonInfo = doc.querySelector("#commonInfo");
-					const items = eml_commonInfo.querySelectorAll("input");
+					const items = $$("input", eml_commonInfo);
 					const commonInfo = {};
 					for (let item of items) {
 						if (!item.value) {
@@ -6027,7 +5904,7 @@ class Modules {
 				}
 				let Items = [];
 				// console.log(Table)
-				const trs = Table.querySelectorAll("tr");
+				const trs = $$("tr", Table);
 				trs.forEach((tr) => {
 					const 项目名称 = Common.cellGetValue(tr.cells[1 + offset]);
 					// Items里面不包含触发项目时添加
@@ -6042,7 +5919,7 @@ class Modules {
 			function getAmountSum() {
 				// 金额汇总
 				const UIAmountSum = doc.querySelector("#UIAmountSum_table_tbody");
-				const tr = UIAmountSum.querySelectorAll("tr")[1];
+				const tr = $$("tr", UIAmountSum)[1];
 				const 配件金额 = tr.cells[2].querySelector("input").value
 					? parseInt(tr.cells[2].querySelector("input").value)
 					: 0;
@@ -6085,7 +5962,7 @@ class Modules {
 			function getOpinionList() {
 				const pinionList_mainRow = doc.querySelector("#pinionList_mainRow");
 				const 意见列表信息 = [];
-				const trs = pinionList_mainRow.querySelectorAll("tr");
+				const trs = $$("tr", pinionList_mainRow);
 				trs.forEach((tr) => {
 					const 角色 = Common.cellGetValue(tr.cells[0]);
 					const 姓名 = Common.cellGetValue(tr.cells[1]);
@@ -6170,7 +6047,7 @@ class Modules {
 			function parser_Propertypage(doc) {
 				const property = new Map();
 				const bpmitems = new Map();
-				const bpmPage_elements = doc.querySelectorAll('[id^="bpmPage_"]');
+				const bpmPage_elements = $$('[id^="bpmPage_"]', doc);
 				bpmPage_elements.forEach((element) => {
 					bpmitems.set(element.id.replace("bpmPage_", ""), element.value);
 				});
@@ -6178,8 +6055,7 @@ class Modules {
 				const propLossFee_listTable = doc.querySelector(
 					"#propLossFee_listTable"
 				);
-				const propLossFee_listTable_trs =
-					propLossFee_listTable.querySelectorAll("tr");
+				const propLossFee_listTable_trs = $$("tr", propLossFee_listTable);
 				const propLossFee_list = [];
 				propLossFee_listTable_trs.forEach((tr) => {
 					const tds = tr.querySelectorAll("td");
@@ -6453,8 +6329,7 @@ class Modules {
     `;
 			basicInfo.innerHTML = `
         <div><strong>车牌号：</strong>${caseloss.get("licenseNo")}</div>
-        <div><strong>维修厂：</strong>${
-					caseloss.get("carinfo")["维修厂名称"]
+        <div><strong>维修厂：</strong>${caseloss.get("carinfo")["维修厂名称"]
 				}</div>
     `;
 
@@ -6469,8 +6344,7 @@ class Modules {
     `;
 
 			amountInfo.innerHTML = `
-        <div><strong>维修费：</strong>${
-					parseInt(amountSum.get("小计")) - parseInt(amountSum.get("外修金额"))
+        <div><strong>维修费：</strong>${parseInt(amountSum.get("小计")) - parseInt(amountSum.get("外修金额"))
 				}</div>
         <div><strong>外修费：</strong>${amountSum.get("外修金额")}</div>
         <div><strong>施救费：</strong>${amountSum.get("施救金额")}</div>
@@ -6684,8 +6558,7 @@ class Modules {
 		// 获取配件价格,在核损节点页面使用
 		async function querypartsprice(iframe = document) {
 			let url_queryModifyTrack;
-			const iframeDocument =
-				iframe.contentDocument || iframe.contentWindow?.document || document;
+			const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document || document;
 			const lossApprovalMethod = iframeDocument.querySelector(
 				"#prpLcarLossApprovalPage_lossApprovalMethod option"
 			).value;
@@ -6697,7 +6570,7 @@ class Modules {
 			if (
 				iframeDocument.querySelector("#bpmPage_back").value == "N" &&
 				iframeDocument.querySelector("#bpmPage_taskCatalog").value ==
-					"CarLossApproval"
+				"CarLossApproval"
 			) {
 				console.debug("提示", "该任务没有轨迹信息！");
 				return;
@@ -6790,27 +6663,27 @@ class Modules {
 	}
 
 
-    //  打开新窗口
-    static GMopenJsWin(url, jsWinId = 'certifyQueryId') {
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = jsWinId;
+	//  打开新窗口
+	static GMopenJsWin(url, jsWinId = 'certifyQueryId') {
+		const link = document.createElement('a');
+		link.href = url;
+		link.target = jsWinId;
 
-    // 创建临时不可见容器
-    const ghostContainer = document.createElement('div');
-    ghostContainer.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;';
+		// 创建临时不可见容器
+		const ghostContainer = document.createElement('div');
+		ghostContainer.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;';
 
-    // 短暂添加到DOM
-    ghostContainer.appendChild(link);
-    document.documentElement.appendChild(ghostContainer); // 添加到根元素避免布局影响
-    link.click();
-    // console.log('创建并打开链接', url);
+		// 短暂添加到DOM
+		ghostContainer.appendChild(link);
+		document.documentElement.appendChild(ghostContainer); // 添加到根元素避免布局影响
+		link.click();
+		// console.log('创建并打开链接', url);
 
-    // 异步清理
-    requestAnimationFrame(() => {
-        document.documentElement.removeChild(ghostContainer);
-    });
-}
+		// 异步清理
+		requestAnimationFrame(() => {
+			document.documentElement.removeChild(ghostContainer);
+		});
+	}
 }
 
 /**
@@ -6820,37 +6693,37 @@ class Modules {
  * @returns {Array[]} 去重后的合并数据
  */
 function mergeAndDeduplicate(localData = [], externalData = []) {
-    // 类型安全检查
-    if (!Array.isArray(localData)) localData = [];
-    if (!Array.isArray(externalData)) externalData = [];
-    
-    // 合并数据
-    const mergedData = [...localData, ...externalData];
-    
-    // 使用 Map 按指定字段组合键去重
-    const uniqueMap = new Map();
-    
-    mergedData.forEach(row => {
-        // 验证行数据是否包含所需字段
-        if (!Array.isArray(row) || row.length < 15) return;
-        
-        // 提取并清洗关键字段（row[2], row[10], row[11], row[13], row[14]）
-        const keyParts = [2, 10, 11, 13, 14].map(index => {
-            const field = row[index]?.toString() || '';
-            return field.replace(/[\s\-\/\\]/g, '');
-        });
-        
-        // 生成复合键
-        const key = keyParts.join('|');
-        
-        // 通过键保存首次出现的数据
-        if (key && !uniqueMap.has(key)) {
-            uniqueMap.set(key, row);
-        }
-    });
-    
-    // 返回去重后的数组
-    return Array.from(uniqueMap.values());
+	// 类型安全检查
+	if (!Array.isArray(localData)) localData = [];
+	if (!Array.isArray(externalData)) externalData = [];
+
+	// 合并数据
+	const mergedData = [...localData, ...externalData];
+
+	// 使用 Map 按指定字段组合键去重
+	const uniqueMap = new Map();
+
+	mergedData.forEach(row => {
+		// 验证行数据是否包含所需字段
+		if (!Array.isArray(row) || row.length < 15) return;
+
+		// 提取并清洗关键字段（row[2], row[10], row[11], row[13], row[14]）
+		const keyParts = [2, 10, 11, 13, 14].map(index => {
+			const field = row[index]?.toString() || '';
+			return field.replace(/[\s\-\/\\]/g, '');
+		});
+
+		// 生成复合键
+		const key = keyParts.join('|');
+
+		// 通过键保存首次出现的数据
+		if (key && !uniqueMap.has(key)) {
+			uniqueMap.set(key, row);
+		}
+	});
+
+	// 返回去重后的数组
+	return Array.from(uniqueMap.values());
 }
 
 
@@ -6868,48 +6741,48 @@ const toastr = Common.toast();
 
 
 (function () {
-    "use strict";
+	"use strict";
 
 
-    // 检查是否是指定的URL
-    const urls = ["claim/casLoginController.do?newlogin", "/claim/synergismOpenClaimController.do"]
-    if (!urls.some(url => window.location.href.includes(url))) {
-        return;
-    }
+	// 检查是否是指定的URL
+	const urls = ["claim/casLoginController.do?newlogin", "/claim/synergismOpenClaimController.do"]
+	if (!urls.some(url => window.location.href.includes(url))) {
+		return;
+	}
 
-    const autoClicker = Modules.startAutoClick();
-    // Common.CreateBTN()
-
-
-
-    const iframe_TopMSG = document.querySelector("iframe#Top_Message");
-    if (iframe_TopMSG) {
-        //iframe_TopMSG加载后执行新增控件
-        iframe_TopMSG.onload = function () {
+	const autoClicker = Modules.startAutoClick();
+	// Common.CreateBTN()
 
 
-            Common.handle_iframe_Top_Message(iframe_TopMSG)
+
+	const iframe_TopMSG = document.querySelector("iframe#Top_Message");
+	if (iframe_TopMSG) {
+		//iframe_TopMSG加载后执行新增控件
+		iframe_TopMSG.onload = function () {
 
 
-            const ConfigWidget = new MultiTabFloater(iframe_TopMSG)
-            // 测试添加一个选项卡
-            ConfigWidget.addTab('数据更新', (contentContainer) => {
-                const 数据更新 = Createconfigdiv()
-                contentContainer.appendChild(数据更新)
-            });
+			Common.handle_iframe_Top_Message(iframe_TopMSG)
 
-            ConfigWidget.addTab('案件区域', (contentContainer) => {
-                const 案件区域 = Modules.filterconfiger({checkedareas:myconfig.areas,tailNo:myconfig.tailNo,publicNo:myconfig.publicNo})
-                contentContainer.appendChild(案件区域)
-            });
 
-            ConfigWidget.addTab('案件号转事故号', (contentContainer) => {
-                const div_案件号转换 = Modules.div_registNo2accidentNo()
-                contentContainer.appendChild(div_案件号转换)
-            });
+			const ConfigWidget = new MultiTabFloater(iframe_TopMSG)
+			// 测试添加一个选项卡
+			ConfigWidget.addTab('数据更新', (contentContainer) => {
+				const 数据更新 = Createconfigdiv()
+				contentContainer.appendChild(数据更新)
+			});
 
-        };
-    }
+			ConfigWidget.addTab('案件区域', (contentContainer) => {
+				const 案件区域 = Modules.filterconfiger({ checkedareas: myconfig.areas, tailNo: myconfig.tailNo, publicNo: myconfig.publicNo })
+				contentContainer.appendChild(案件区域)
+			});
+
+			ConfigWidget.addTab('案件号转事故号', (contentContainer) => {
+				const div_案件号转换 = Modules.div_registNo2accidentNo()
+				contentContainer.appendChild(div_案件号转换)
+			});
+
+		};
+	}
 
 
 
