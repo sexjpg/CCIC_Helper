@@ -1,6 +1,276 @@
-//  数据 250719
+//  数据 250721
 
 const SCData = {};
+
+/**
+ * 合并并去重配件编码数据
+ * @param {Array[]} [localData=[]] - 本地存储的二维数组数据（CSV_配件编码）
+ * @param {Array[]} [externalData=[]] - 外部获取的二维数组数据
+ * @returns {Array[]} 去重后的合并数据
+ */
+SCData.mergeAndDeduplicate = function (localData = [], externalData = []) {
+  // 类型安全检查
+  if (!Array.isArray(localData)) localData = [];
+  if (!Array.isArray(externalData)) externalData = [];
+
+  // 合并数据
+  const mergedData = [...localData, ...externalData];
+
+  // 使用 Map 按指定字段组合键去重
+  const uniqueMap = new Map();
+
+  mergedData.forEach((row) => {
+    // 验证行数据是否包含所需字段
+    if (!Array.isArray(row) || row.length < 15) return;
+
+    // 提取并清洗关键字段（row[2], row[10], row[11], row[13], row[14]）
+    const keyParts = [2, 10, 11, 13, 14].map((index) => {
+      const field = row[index]?.toString() || "";
+      return field.replace(/[\s\-\/\\]/g, "");
+    });
+
+    // 生成复合键
+    const key = keyParts.join("|");
+
+    // 通过键保存首次出现的数据
+    if (key && !uniqueMap.has(key)) {
+      uniqueMap.set(key, row);
+    }
+    // else{console.log('重复数据',row)}
+  });
+
+  // 返回去重后的数组
+  return Array.from(uniqueMap.values());
+};
+
+/**
+ * 合并并去重本地与外部数据，同时计算增量数据
+ * @param {Array} localData - 本地数据数组，优先保留
+ * @param {Array} externalData - 外部数据数组，需要去重合并
+ * @returns {Object} 包含两个属性的对象：
+ *   - mergedData: 完全去重后的合并数据数组
+ *   - incremental: 相对于本地数据的增量数据数组
+ */
+SCData.mergeAndDeduplicateplus = function (localData = [], externalData = []) {
+  // 类型安全检查
+  if (!Array.isArray(localData)) localData = [];
+  if (!Array.isArray(externalData)) externalData = [];
+
+  /**
+   * 生成复合键的辅助函数
+   * 从数据行中提取指定索引位置的字段，清洗后生成唯一标识
+   * @param {Array} row - 数据行
+   * @returns {string|null} 生成的复合键或null（当数据无效时）
+   */
+  function generateKey(row) {
+    if (!Array.isArray(row) || row.length < 15) return null;
+    const keyParts = [2, 10, 11, 13, 14].map(index => {
+      const field = row[index]?.toString() || '';
+      return field.replace(/[\s\-\/\\]/g, '');
+    });
+    return keyParts.join('|') || null;
+  }
+
+  /**
+   * 收集本地数据中的所有有效键值
+   * 用于后续增量数据计算
+   */
+  const localKeys = new Set();
+  localData.forEach(row => {
+    const key = generateKey(row);
+    if (key) localKeys.add(key);
+  });
+
+  /**
+   * 合并去重主逻辑
+   * 1. 合并本地与外部数据
+   * 2. 使用Map结构保证唯一性
+   * 3. 根据生成键进行去重
+   */
+  const mergedData = [...localData, ...externalData];
+  const uniqueMap = new Map();
+  mergedData.forEach(row => {
+    const key = generateKey(row);
+    if (key && !uniqueMap.has(key)) {
+      uniqueMap.set(key, row);
+    }
+  });
+
+  /**
+   * 增量数据计算
+   * 过滤出本地数据中不存在的新数据
+   */
+  const incremental = Array.from(uniqueMap.values()).filter(row => {
+    const key = generateKey(row);
+    return key && !localKeys.has(key);
+  });
+
+  // 返回标准化结果结构
+  return {
+    mergedData: Array.from(uniqueMap.values()),
+    incremental
+  };
+}
+
+/**
+ * 异步更新GitHub仓库文件内容
+ * 
+ * @param {Object} options - 操作参数
+ * @param {string} options.owner - 仓库所有者名称
+ * @param {string} options.repo - 仓库名称
+ * @param {string} options.filePath - 文件路径（相对仓库根目录）
+ * @param {string} options.fileContent - 文件内容（字符串类型）
+ * @param {string} [options.pat] - GitHub个人访问令牌（推荐提供以避免速率限制）
+ * @param {string} [options.eventType='update-file-event'] - 事件类型标识符
+ * @param {Function} [options.onStatusUpdate] - 状态更新回调函数
+ * 
+ * @returns {Promise<Object>} 操作结果对象
+ * @returns {boolean} returns.success - 操作是否成功
+ * @returns {string} returns.message - 状态描述信息
+ * @returns {Object} [returns.errorDetails] - 错误详细信息（仅失败时存在）
+ * @returns {number} [returns.httpStatus] - HTTP状态码
+ */
+SCData.update2GitHub = async function (options) {
+    const {
+        owner,
+        repo,
+        filePath,
+        fileContent,
+        pat,
+        eventType = 'update-file-event', // Default event type
+        onStatusUpdate
+    } = options;
+
+    // --- Input Validation ---
+    /**
+     * 参数验证阶段：
+     * 验证必填参数是否完整（owner, repo, filePath, fileContent）
+     * 检查fileContent是否为字符串类型
+     * 检查PAT令牌是否存在（非必须但推荐）
+     */
+    if (!owner || !repo || !filePath || typeof fileContent !== 'string') {
+        const errorMsg = 'Error: Missing required parameters (owner, repo, filePath, fileContent).';
+        if (onStatusUpdate) onStatusUpdate({ status: 'error', message: errorMsg });
+        return { success: false, message: errorMsg };
+    }
+    // PAT is highly recommended, even for public repos, to avoid rate limits / ensure dispatch
+    if (!pat) {
+        const warnMsg = 'Warning: PAT is not provided. API request might fail or be rate-limited, especially for private repositories or frequent use.';
+        if (onStatusUpdate) onStatusUpdate({ status: 'warning', message: warnMsg });
+        // Depending on strictness, you might choose to return an error here:
+        // return { success: false, message: "Error: PAT is required." };
+    }
+
+
+    if (onStatusUpdate) onStatusUpdate({ status: 'sending', message: 'Preparing data...' });
+
+    // --- Base64 Encode Content ---
+    /**
+     * 文件内容编码阶段：
+     * 使用TextEncoder将字符串内容转换为UTF-8格式
+     * 通过btoa函数进行Base64编码
+     * 捕获并处理编码过程中的异常
+     */
+    let base64Content;
+    try {
+        const encoder = new TextEncoder(); // For UTF-8 handling
+        const data = encoder.encode(fileContent);
+        base64Content = btoa(String.fromCharCode.apply(null, data));
+    } catch (e) {
+        const errorMsg = `Error encoding file content: ${e.message}`;
+        if (onStatusUpdate) onStatusUpdate({ status: 'error', message: errorMsg });
+        return { success: false, message: errorMsg, errorDetails: e };
+    }
+
+    // --- API Call ---
+    /**
+     * GitHub API调用阶段：
+     * 构造API请求URL和请求头
+     * 处理认证信息（PAT令牌）
+     * 构建请求体并发送POST请求
+     * 处理响应状态和错误信息
+     */
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/dispatches`;
+    const headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        // 'X-GitHub-Api-Version': '2022-11-28' // Good practice
+    };
+
+    if (pat) {
+        headers['Authorization'] = `Bearer ${pat}`;
+    }
+
+    const body = JSON.stringify({
+        event_type: eventType,
+        client_payload: {
+            filename: filePath,
+            content_base64: base64Content
+        }
+    });
+
+    if (onStatusUpdate) onStatusUpdate({ status: 'sending', message: `Sending request to ${apiUrl}...` });
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: headers,
+            body: body
+        });
+
+        if (response.ok) { // status 204 No Content is typical for successful dispatch
+            const successMsg = `Success! Dispatch event sent. Status: ${response.status}. Check Actions tab in '${owner}/${repo}'.`;
+            if (onStatusUpdate) onStatusUpdate({ status: 'success', message: successMsg, httpStatus: response.status });
+            return { success: true, message: successMsg, httpStatus: response.status };
+        } else {
+            let errorData = { message: `Request failed with status: ${response.status}` };
+            try {
+                errorData = await response.json(); // Try to parse GitHub's error response
+            } catch (e) {
+                // Ignore if response is not JSON
+            }
+            const errorMsg = `Error: ${response.status} - ${errorData.message || response.statusText}`;
+            if (onStatusUpdate) onStatusUpdate({ status: 'error', message: errorMsg, errorDetails: errorData, httpStatus: response.status });
+            return { success: false, message: errorMsg, errorDetails: errorData, httpStatus: response.status };
+        }
+    } catch (error) {
+        const errorMsg = `Network or fetch error: ${error.message}`;
+        if (onStatusUpdate) onStatusUpdate({ status: 'error', message: errorMsg, errorDetails: error });
+        return { success: false, message: errorMsg, errorDetails: error };
+    }
+}
+
+/**
+ * 执行数据合并并上传增量数据到GitHub
+ * @param {Array} data1 - 第一个数据源
+ * @param {Array} data2 - 第二个数据源
+ */
+async function processAndUploadData(data1, data2) {
+    // 合并并去重数据
+    const mergedData = SCData.mergeAndDeduplicateplus(data1, data2);
+    
+    // 获取增量数据
+    const incrementalData = mergedData['incremental'] || [];
+    
+    // 生成时间戳文件名
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    const filePath = `new_${timestamp}.json`;
+    
+    // 转换数据为字符串
+    const fileContent = JSON.stringify(incrementalData, null, 2);
+
+	options={}
+	options.owner='sexjpg'
+	options.repo='testUpload'
+	options.pat='github_pat_******************'
+	options.filePath=filePath
+	options.fileContent=fileContent
+    
+    // 上传到GitHub
+    resp = await SCData.update2GitHub(options);
+	return resp;
+}
+
 
 SCData.claimfactorysys = [
   {
@@ -25853,96 +26123,108 @@ SCData.riskpartcodes = [
     "",
     ""
   ],
-    [
-        "",
-        "倒车镜（左）",
-        "963025NN0A",
-        "2018 东风英菲尼迪 东风英菲尼迪QX50 SUV 2.0T CVT 时尚版(DFL6470VTNW2)",
-        "LGBW2PE4XKD191990",
-        "RDFA720250000001621888",
-        "粤L6257V",
-        "G202507170000000005173",
-        "386988287",
-        "",
-        "",
-        "品牌价",
-        "",
-        "210【倒车镜（左）】可分体提供，建议核实更换总成必要性。",
-        "可分体更换倒车镜固定座，外镜护面，倒车镜转向灯，倒车镜护盖，\t 折叠装置，倒车镜片，\t 倒车镜电机"
-    ],
-    [
-        "",
-        "倒车镜（右）",
-        "963015NN0A",
-        "2018 东风英菲尼迪 东风英菲尼迪QX50 SUV 2.0T CVT 时尚版(DFL6470VTNW2)",
-        "LGBW2PE4XKD191990",
-        "RDFA720250000001621888",
-        "粤L6257V",
-        "G202507170000000005173",
-        "386988287",
-        "",
-        "",
-        "品牌价",
-        "",
-        "210【倒车镜（右）】可分体提供，建议核实更换总成必要性。",
-        "可分体更换倒车镜固定座，外镜护面，倒车镜转向灯，倒车镜护盖，\t 折叠装置，倒车镜片，\t 倒车镜电机"
-    ],
-    [
-        "",
-        "前大灯（右）",
-        "260105UE5B-A292",
-        "2016 东风日产 轩逸 三厢 1.6L CVT 尊享版(DFL7168VBL2)",
-        "LGBH52E01HY358500",
-        "RDFA720250000001609977",
-        "粤T9M958",
-        "G202507160000000002905",
-        "386987210",
-        "",
-        "",
-        "品牌价",
-        "",
-        "101【前大灯（右）】定损金额过高，推荐按本地交易价格【910。0】定损。",
-        ""
-    ]
+  [
+    "",
+    "倒车镜（左）",
+    "963025NN0A",
+    "2018 东风英菲尼迪 东风英菲尼迪QX50 SUV 2.0T CVT 时尚版(DFL6470VTNW2)",
+    "LGBW2PE4XKD191990",
+    "RDFA720250000001621888",
+    "粤L6257V",
+    "G202507170000000005173",
+    "386988287",
+    "",
+    "",
+    "品牌价",
+    "",
+    "210【倒车镜（左）】可分体提供，建议核实更换总成必要性。",
+    "可分体更换倒车镜固定座，外镜护面，倒车镜转向灯，倒车镜护盖，\t 折叠装置，倒车镜片，\t 倒车镜电机"
+  ],
+  [
+    "",
+    "倒车镜（右）",
+    "963015NN0A",
+    "2018 东风英菲尼迪 东风英菲尼迪QX50 SUV 2.0T CVT 时尚版(DFL6470VTNW2)",
+    "LGBW2PE4XKD191990",
+    "RDFA720250000001621888",
+    "粤L6257V",
+    "G202507170000000005173",
+    "386988287",
+    "",
+    "",
+    "品牌价",
+    "",
+    "210【倒车镜（右）】可分体提供，建议核实更换总成必要性。",
+    "可分体更换倒车镜固定座，外镜护面，倒车镜转向灯，倒车镜护盖，\t 折叠装置，倒车镜片，\t 倒车镜电机"
+  ],
+  [
+    "",
+    "前大灯（右）",
+    "260105UE5B-A292",
+    "2016 东风日产 轩逸 三厢 1.6L CVT 尊享版(DFL7168VBL2)",
+    "LGBH52E01HY358500",
+    "RDFA720250000001609977",
+    "粤T9M958",
+    "G202507160000000002905",
+    "386987210",
+    "",
+    "",
+    "品牌价",
+    "",
+    "101【前大灯（右）】定损金额过高，推荐按本地交易价格【910。0】定损。",
+    ""
+  ],
+  [
+    "",
+    "行李箱盖",
+    "5210004AVN0100B00",
+    "2023 广汽埃安 广汽埃安AION Y SUV 固定齿比 510 科技版(GAM6450BEVD0M)",
+    "LNADHAB14P1138139",
+    "RDFA720250000001563949",
+    "粤CDH9908",
+    "G202507100000000005592",
+    "387165879",
+    "",
+    "600",
+    "品牌价",
+    "",
+    "",
+    ""
+  ],
+  [
+    "",
+    "举升门锁",
+    "5635003ACN0100",
+    "2022 广汽埃安 广汽埃安AION Y SUV 固定齿比 70 乐享版 磷酸铁锂(GAM7000BEVD0Q)",
+    "LNADJAB24M5031867",
+    "RDEN720250000001575938",
+    "粤CD09887",
+    "G202507120000000001973",
+    "387106875",
+    "",
+    "120",
+    "大地价",
+    "",
+    "",
+    ""
+  ],
+  [
+    "",
+    "举升门壳",
+    "5210004AVN0100B00",
+    "2022 广汽埃安 广汽埃安AION Y SUV 固定齿比 70 乐享版 磷酸铁锂(GAM7000BEVD0Q)",
+    "LNADJAB24M5031867",
+    "RDEN720250000001575938",
+    "粤CD09887",
+    "G202507120000000001973",
+    "387106875",
+    "",
+    "590",
+    "大地价",
+    "",
+    "",
+    ""
+  ]
 ];
 
-/**
- * 合并并去重配件编码数据
- * @param {Array[]} [localData=[]] - 本地存储的二维数组数据（CSV_配件编码）
- * @param {Array[]} [externalData=[]] - 外部获取的二维数组数据
- * @returns {Array[]} 去重后的合并数据
- */
-SCData.mergeAndDeduplicate = function (localData = [], externalData = []) {
-	// 类型安全检查
-	if (!Array.isArray(localData)) localData = [];
-	if (!Array.isArray(externalData)) externalData = [];
 
-	// 合并数据
-	const mergedData = [...localData, ...externalData];
-
-	// 使用 Map 按指定字段组合键去重
-	const uniqueMap = new Map();
-
-	mergedData.forEach((row) => {
-		// 验证行数据是否包含所需字段
-		if (!Array.isArray(row) || row.length < 15) return;
-
-		// 提取并清洗关键字段（row[2], row[10], row[11], row[13], row[14]）
-		const keyParts = [2, 10, 11, 13, 14].map((index) => {
-			const field = row[index]?.toString() || "";
-			return field.replace(/[\s\-\/\\]/g, "");
-		});
-
-		// 生成复合键
-		const key = keyParts.join("|");
-
-		// 通过键保存首次出现的数据
-		if (key && !uniqueMap.has(key)) {
-			uniqueMap.set(key, row);
-		}
-		// else{console.log('重复数据',row)}
-	});
-
-	// 返回去重后的数组
-	return Array.from(uniqueMap.values());
-};
