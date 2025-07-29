@@ -3,7 +3,7 @@
 const GF = {};
 GF.options = {
   owner: 'sexjpg',
-  repo: 'testUpload',
+  repo: 'CCIC_Helper',
   dicpath: '_mergeData',
   pat: 'patxxxxxxxxxxxx'
 }
@@ -222,25 +222,16 @@ GF.processAndUploadData = async function (data1, data2) {
   // 获取增量数据
   const incrementalData = mergedData['incremental'] || [];
 
-  // // // 执行增量上传
-  //   const options = {
-  //   ...GF.options,
-  //   filePath: filePath,
-  //   fileContent: fileContent
-  // };
-  // const resp1 = await GF.update2GitHub(options);
-  // console.log('增量数据上传结果：', resp1, incrementalData);
 
-
-
-  // 新增：加载线上融合数据,只有成功加载线上数据后才能进行后续操作
+  // 加载线上融合数据,只有成功加载线上数据后才能进行后续操作
   let olmergeData;
   try {
     // 获取线上数据,增加时间戳，避免缓存
+    await GF.refleshcache();
     const mergeData_Url = `${GF.mergeData_Url}?ts=${Date.now()}`
     const response = await fetch(mergeData_Url);
     olmergeData = await response.json();
-    // 新增：二次合并去重
+    // 二次合并去重
     const mergeResult = GF.mergeAndDeduplicateplus(olmergeData, incrementalData);
     const mergeData_new = mergeResult.mergedData
     //如果融合数据为空或者增量数据为空，则不进行上传
@@ -248,7 +239,7 @@ GF.processAndUploadData = async function (data1, data2) {
       console.log('没有新增数据，不进行上传')
       return
     }
-    // 新增：二次上传逻辑 - 融合数据
+    // 二次上传逻辑 - 融合数据
     const options2 = {
       ...GF.options,
       filePath: GF.mergeData_name,
@@ -276,6 +267,22 @@ GF.processAndUploadData = async function (data1, data2) {
   }
 
 
+
+}
+
+
+GF.refleshcache = async function (url=GF.mergeData_Url) { 
+  const fleshcache_url = url.replace(/https:\/\/cdn\.jsdelivr\.net/, 'https://purge.jsdelivr.net')
+  fetch(fleshcache_url)
+  .then(response => {
+    return  response.json()
+  })
+  .then(data => {
+    console.log('刷新缓存结果：', data)
+  })
+  .catch(error => {
+    console.error('刷新缓存错误：', error);
+  });
 
 }
 
@@ -26469,74 +26476,6 @@ SCData.riskpartcodes = [
     "大地价",
     "",
     "",
-    ""
-  ],
-  [
-    "",
-    "前大灯（右）",
-    "811100A220",
-    "2024 广汽丰田 锋兰达 SUV 2.0L CVT 尊贵版(GTM7200VHEVR)",
-    "LVGC916ZXRG091441",
-    "RDFA720250000001621826",
-    "粤ER329L",
-    "G202507170000000005127",
-    "388028760",
-    "",
-    "",
-    "厂方指导价",
-    "",
-    "D102【前大灯（右）】配件可分体提供，请核实总成更换必要性。",
-    ""
-  ],
-  [
-    "",
-    "前大灯（左）",
-    "811500A220",
-    "2024 广汽丰田 锋兰达 SUV 2.0L CVT 尊贵版(GTM7200VHEVR)",
-    "LVGC916ZXRG091441",
-    "RDFA720250000001621826",
-    "粤ER329L",
-    "G202507170000000005127",
-    "388028760",
-    "",
-    "",
-    "厂方指导价",
-    "",
-    "D102【前大灯（左）】配件可分体提供，请核实总成更换必要性。",
-    ""
-  ],
-  [
-    "",
-    "前风挡玻璃",
-    "72700DF30A-B014",
-    "2019 东风日产 逍客 SUV 2.0L CVT XV 智享版(DFL7200VBNL1)",
-    "LGBL4AE01KD109538",
-    "RDFA720250000001698866",
-    "粤L1757S",
-    "G202507270000000002871",
-    "388016365",
-    "",
-    "",
-    "大地价",
-    "",
-    "101【前风挡玻璃】定损金额过高，推荐按本地交易价格【514。8】定损。\t",
-    ""
-  ],
-  [
-    "",
-    "散热器电子扇总成",
-    "23866259",
-    "上汽通用五菱 宏光 1.5L 手动档 基本型(LZW6443JY)",
-    "LZWADAGA6F4125922",
-    "RDFA720250000001642450",
-    "粤PYR820",
-    "G202507200000000003882",
-    "387967124",
-    "",
-    "",
-    "厂方指导价",
-    "",
-    "D102【散热器电子扇总成】配件可分体提供，请核实总成更换必要性。",
     ""
   ]
 ];
