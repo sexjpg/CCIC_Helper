@@ -1,9 +1,9 @@
-//  数据 250729
+//  数据 250806
 
 const GF = {};
 GF.options = {
   owner: 'sexjpg',
-  repo: 'testUpload',
+  repo: 'CCIC_Helper',
   dicpath: '_mergeData',
   pat: 'patxxxxxxxxxxxx'
 }
@@ -12,15 +12,15 @@ GF.mergeData_Url=`https://cdn.jsdelivr.net/gh/${GF.options.owner}/${GF.options.r
 
 /**
  * 合并并去重本地与外部数据，同时计算增量数据
- * @param {Array} localData - 本地数据数组，优先保留
+ * @param {Array} remotedata - 本地数据数组，优先保留
  * @param {Array} externalData - 外部数据数组，需要去重合并
  * @returns {Object} 包含两个属性的对象：
  *   - mergedData: 完全去重后的合并数据数组
  *   - incremental: 相对于本地数据的增量数据数组
  */
-GF.mergeAndDeduplicateplus = function (localData = [], externalData = []) {
+GF.mergeAndDeduplicateplus = function (remotedata = [], externalData = []) {
   // 类型安全检查
-  if (!Array.isArray(localData)) localData = [];
+  if (!Array.isArray(remotedata)) remotedata = [];
   if (!Array.isArray(externalData)) externalData = [];
 
   /**
@@ -43,7 +43,7 @@ GF.mergeAndDeduplicateplus = function (localData = [], externalData = []) {
    * 用于后续增量数据计算
    */
   const localKeys = new Set();
-  localData.forEach(row => {
+  remotedata.forEach(row => {
     const key = generateKey(row);
     if (key) localKeys.add(key);
   });
@@ -54,7 +54,7 @@ GF.mergeAndDeduplicateplus = function (localData = [], externalData = []) {
    * 2. 使用Map结构保证唯一性
    * 3. 根据生成键进行去重
    */
-  const mergedData = [...localData, ...externalData];
+  const mergedData = [...remotedata, ...externalData];
   const uniqueMap = new Map();
   mergedData.forEach(row => {
     const key = generateKey(row);
@@ -209,38 +209,26 @@ GF.update2GitHub = async function (options) {
 
 /**
  * 执行数据合并并上传增量数据到GitHub
- * @param {Array} data1 - 第一个数据源
- * @param {Array} data2 - 第二个数据源
+ * @param {Array} remotedata - 第一个数据源
+ * @param {Array} localdata - 第二个数据源
  */
-GF.processAndUploadData = async function (data1, data2) {
+GF.processAndUploadData = async function (remotedata, localdata) {
 
-  
 
   // 合并并去重数据
-  const mergedData = GF.mergeAndDeduplicateplus(data1, data2);
+  const mergedData = GF.mergeAndDeduplicateplus(remotedata, localdata);
 
   // 获取增量数据
   const incrementalData = mergedData['incremental'] || [];
 
-  // // // 执行增量上传
-  //   const options = {
-  //   ...GF.options,
-  //   filePath: filePath,
-  //   fileContent: fileContent
-  // };
-  // const resp1 = await GF.update2GitHub(options);
-  // console.log('增量数据上传结果：', resp1, incrementalData);
-
-
-
-  // 新增：加载线上融合数据,只有成功加载线上数据后才能进行后续操作
+  // 加载线上融合数据,只有成功加载线上数据后才能进行后续操作
   let olmergeData;
   try {
     // 获取线上数据,增加时间戳，避免缓存
     const mergeData_Url = `${GF.mergeData_Url}?ts=${Date.now()}`
     const response = await fetch(mergeData_Url);
     olmergeData = await response.json();
-    // 新增：二次合并去重
+    // 二次合并去重
     const mergeResult = GF.mergeAndDeduplicateplus(olmergeData, incrementalData);
     const mergeData_new = mergeResult.mergedData
     //如果融合数据为空或者增量数据为空，则不进行上传
@@ -248,14 +236,14 @@ GF.processAndUploadData = async function (data1, data2) {
       console.log('没有新增数据，不进行上传')
       return
     }
-    // 新增：二次上传逻辑 - 融合数据
-    const options2 = {
+    // 二次上传逻辑 - 融合数据
+    const options_merge = {
       ...GF.options,
       filePath: GF.mergeData_name,
       fileContent: JSON.stringify(mergeData_new, null, 2)
     };
     // 执行二次上传
-    const resp2 = await GF.update2GitHub(options2);
+    const resp2 = await GF.update2GitHub(options_merge);
     console.log('融合数据上传结果', resp2, mergeData_new);
   } catch (error) {
     console.warn('融合数据流程执行错误', error);
@@ -263,15 +251,13 @@ GF.processAndUploadData = async function (data1, data2) {
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
     const filePath = `new_${timestamp}.json`;
     const fileContent = JSON.stringify(incrementalData, null, 2);
-    const options = {
-        owner: 'sexjpg',
-        repo: 'testUpload',
-        pat: pat,
-        filePath: filePath,
-        fileContent: fileContent
+    const options_retry = {
+      ...GF.options,
+      filePath: filePath,
+      fileContent: fileContent
     };
     // 执行增量上传
-    const resp1 = await SCData.update2GitHub(options);
+    const resp1 = await GF.update2GitHub(options_retry);
     console.log('增量数据上传结果：', resp1, incrementalData);
   }
 
@@ -9397,6 +9383,40 @@ SCData.claimfactorysys = [
 ];
 
 SCData.riskpartcodes = [
+  [
+    "",
+    "举升门壳",
+    "5210004AVN0200A00",
+    "2023 广汽埃安 广汽埃安AION Y SUV 固定齿比 510 科技版(GAM6450BEVD0M)",
+    "LNADHAB15P1129692",
+    "RDFA720250000001751297",
+    "粤ABA1011",
+    "G202508020000000004841",
+    "389075382",
+    "",
+    "600",
+    "品牌价",
+    "",
+    "",
+    ""
+  ],
+  [
+    "",
+    "后保险杠皮",
+    "7106004AVN0500B42",
+    "2023 广汽埃安 广汽埃安AION Y SUV 固定齿比 510 科技版(GAM6450BEVD0M)",
+    "LNADHAB15P1129692",
+    "RDFA720250000001751297",
+    "粤ABA1011",
+    "G202508020000000004841",
+    "389075382",
+    "",
+    "145",
+    "品牌价",
+    "",
+    "",
+    ""
+  ],
   [
     "",
     "后保险杠下裙板",
